@@ -3,10 +3,13 @@ import os
 import random
 
 import numpy as np
-import torch
-from transformers import ViTMAEModel, AutoImageProcessor
-from PIL import Image
+import matplotlib.pyplot as plt
 import requests
+import torch
+from PIL import Image
+from transformers import ViTMAEModel, AutoImageProcessor
+from unetr_decoder import UNETR_decoder
+
 
 SEED = 5
 LOGGER = logging.getLogger(__name__)
@@ -30,7 +33,6 @@ def seed_everything(seed: int):
     torch.manual_seed(seed)
 
 
-
 if __name__ == '__main__':
     # opt = get_opt()
     logger = logging.getLogger()
@@ -46,11 +48,26 @@ if __name__ == '__main__':
     image = Image.open(requests.get(url, stream=True).raw)
 
     image_processor = AutoImageProcessor.from_pretrained("facebook/vit-mae-base")
-    model = ViTMAEModel.from_pretrained("facebook/vit-mae-base")
+    encoder = ViTMAEModel.from_pretrained("facebook/vit-mae-base")
     inputs = image_processor(images=image, return_tensors="pt")
-    model.embeddings.config.mask_ratio = 0
-    outputs = model(pixel_values=inputs['pixel_values'])
-    last_hidden_states = outputs.last_hidden_state
-    # print()
-    # train(opt)
-    # test(opt)
+    encoder.embeddings.config.mask_ratio = 0
+    encoder.config.output_hidden_states = True
+    outputs = encoder(pixel_values=inputs['pixel_values'])
+    decoder = UNETR_decoder(
+        in_channels=3,
+        out_channels=1,
+        img_size=(224, 224),  # TODO replace
+        patch_size=16,
+        feature_size=16,
+        hidden_size=768,
+        spatial_dims=2
+    )
+    hidden_states = tuple(hs[:, 1:, :] for hs in outputs.hidden_states)
+    a = decoder(
+        x=inputs['pixel_values'],
+        x_in=inputs['pixel_values'],
+        hidden_states_out=hidden_states
+    )
+    plt.matshow(a.squeeze(0, 1).detach().numpy())
+    plt.show()
+    print()
