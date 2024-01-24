@@ -1,19 +1,21 @@
 import glob
-import os
+import logging
 
 import pandas as pd
-from sklearn.model_selection import train_test_split
-from transformers import AutoImageProcessor
-from data.dataset import BusiDataset, BratsDataset
-import torchvision.transforms as transforms
-from torch.utils.data import DataLoader
 import torch
+import torchvision.transforms as transforms
+from sklearn.model_selection import train_test_split
+from torch.utils.data import DataLoader
+from tqdm import tqdm
+from transformers import AutoImageProcessor
 
-from utilis.utils import dice_coeff
+from data.dataset import BusiDataset, BratsDataset
 
+
+# from utilis.utils import dice_coeff
 
 def get_data(dataset_path):
-    masks = glob.glob(f"{dataset_path}/*_mask.png")
+    masks = glob.glob(f"{dataset_path}/*/*_mask.png")
     images = [mask_images.replace("_mask", "") for mask_images in masks]
     series = list(zip(images, masks))
     dataset = pd.DataFrame(series, columns=['image_path', 'mask_path'])
@@ -32,8 +34,8 @@ class Trainer:
         self.log_interval = 8
 
         self.train_dataset, self.test_dataset = self.get_dataset(dataset_name, dataset_path)
-        self.train_loader = DataLoader(self.train_dataset, shuffle=True, batch_size=batch_size)
-        self.test_loader = DataLoader(self.test_dataset, shuffle=False, batch_size=batch_size)
+        self.train_loader = DataLoader(self.train_dataset, shuffle=True, batch_size=batch_size, pin_memory=True)
+        self.test_loader = DataLoader(self.test_dataset, shuffle=False, batch_size=batch_size, pin_memory=True)
 
         # Lists to store training and validation metrics
         self.train_losses = []
@@ -68,12 +70,14 @@ class Trainer:
 
     def save_best_model(self, epoch, dice):
         if dice > self.best_dice:
+            LOGGER = logging.getLogger(__name__)
+            LOGGER.info(f"Saved New Model at Epoch {epoch}")
             self.best_dice = dice
             self.best_epoch = epoch
             self.best_model = self.model.state_dict()
 
-            log_directory = 'log'
-            os.makedirs(log_directory, exist_ok=True)
+            log_directory = '/media/data/lbonanni/Dataset_BUSI_with_GT/pretrained'
+            # os.makedirs(log_directory, exist_ok=True)
 
             # Specify the file path for saving the vitMaemodel
             filename = f'{log_directory}/best_model_epoch{epoch}_dice{dice:.4f}.pth'
@@ -81,13 +85,18 @@ class Trainer:
 
     def train(self):
         # Training loop
-        print(f"Start training on {self.device} [...]")
+        LOGGER = logging.getLogger(__name__)
+        LOGGER.info(f"Start training on {self.device}")
         for epoch in range(self.num_epochs):
-            train_loss = 0.0
+            running_loss = 0.0
 
             self.model.train()
 
-            for i, (images, masks) in enumerate(self.train_loader):
+            for i, (images, masks) in enumerate(pbar := tqdm(self.train_loader)):
+                # free_mem, total_mem = torch.cuda.mem_get_info(0)
+                # LOGGER.info(
+                #     f"BATCH {i + 1}/{n_batch} | USED MEMORY {((total_mem - free_mem) / total_mem) * 100}%")
+                batch_size = images.size(0)
                 images, masks = images.to(self.device), masks.to(self.device)
 
                 self.optimizer.zero_grad()
@@ -96,10 +105,12 @@ class Trainer:
 
                 loss.backward()
                 self.optimizer.step()
-                train_loss += loss.item()
+                running_loss += loss.item()
+                # pbar.set_postfix(f"Loss {loss.item() / batch_size:.4f}")
+                pbar.set_postfix({"Loss": torch.round(loss, decimals=4).item()})
 
-            avg_train_loss = train_loss / len(self.train_loader)
-            print(f'Epoch [{epoch + 1}/{self.num_epochs}], Train Loss: {avg_train_loss:.4f}')
+            avg_train_loss = running_loss / len(self.train_loader)
+            LOGGER.info(f'Epoch [{epoch + 1}/{self.num_epochs}], Train Loss: {avg_train_loss:.4f}')
 
             # Save metrics
             self.train_losses.append(avg_train_loss)
@@ -108,22 +119,23 @@ class Trainer:
             self.save_best_model(epoch + 1, avg_train_loss)
 
     def test(self):
-        test_dice = 0.0
-
-        print(f"Start testing on {self.device} [...]")
+        running_loss = 0.0
+        LOGGER = logging.getLogger(__name__)
+        LOGGER.info(f"Start testing on {self.device}")
         self.model.eval()
         with torch.no_grad():
-            for i, (images, masks) in enumerate(self.test_loader):
+            for i, (images, masks) in enumerate(pbar := tqdm(self.test_loader)):
                 images, masks = images.to(self.device), masks.to(self.device)
                 batch_size = images.size(0)
 
                 outputs = self.model(images)
-                dice = dice_coeff(inputs=outputs, target=masks)
-                test_dice += dice
+                dice = self.criterion.dice(outputs, masks)
+                running_loss += dice
+                pbar.set_postfix({"Dice coefficient": torch.round(dice, decimals=4).item()})
+                # LOGGER.info(f'Epoch [{epoch + 1}/{self.num_epochs}], Train Loss: {avg_train_loss:.4f}')
+                # print(f'Batch {i}: Dice coefficient {dice/batch_size:.4f}')
 
-                print(f'Batch {i}: Dice coefficient {dice/batch_size:.4f}')
-
-        print(f'Total dice coefficient {test_dice/i:.4f}')
+        # print(f'Total dice coefficient {test_dice/i:.4f}')
 
     def get_metrics(self):
         return {

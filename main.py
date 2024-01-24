@@ -4,11 +4,12 @@ import random
 
 import numpy as np
 import torch
+from monai.losses import DiceCELoss
 
 from models.mae_unetr import MaeUnetr
-from utilis.utils import diceLoss, bce_dice_loss, dice_coef_loss
-
 from trainer import Trainer
+
+# from utilis.utils import diceLoss, bce_dice_loss, dice_coef_loss
 
 SEED = 5
 LOGGER = logging.getLogger(__name__)
@@ -102,23 +103,26 @@ if __name__ == '__main__':
 
     # 1- MODEL
     model = MaeUnetr()
-
+    model.to(device)
 
     # 2- DATA LOADING AND TRAINER
     # With trainer you define also datasets and data loaders
     busi_trainer = Trainer(
         model=model,
-        batch_size=2,
+        batch_size=64,
         device=device,
-        num_epochs=10,
+        num_epochs=30,
         optimizer=torch.optim.Adam(lr=1e-4, weight_decay=1e-5, params=model.get_parameters()),
-        criterion=bce_dice_loss,
+        criterion=DiceCELoss(to_onehot_y=True,
+                             softmax=True,
+                             squared_pred=False),
         dataset_name="BUSI",
-        dataset_path="data/datasetProva"
+        dataset_path="/media/data/lbonanni/Dataset_BUSI_with_GT"
     )
 
     # 3- TRAINING
     busi_trainer.train()
+    busi_trainer.test()
 
     # inputs['pixel_values']
 

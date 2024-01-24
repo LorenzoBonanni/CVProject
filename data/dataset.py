@@ -27,9 +27,9 @@ class BusiDataset(Dataset):
             mask = mask.convert("L")
 
         if self.image_transform:
-            image = self.image_transform(images=image, return_tensors="pt")['pixel_values'].to(self.device)
+            image = self.image_transform(images=image, return_tensors="pt")['pixel_values']
         if self.mask_transform:
-            mask = self.mask_transform(mask).to(self.device)
+            mask = self.mask_transform(mask)
 
         return image.squeeze(0), mask
 

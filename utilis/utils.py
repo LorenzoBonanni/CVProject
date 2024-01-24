@@ -1,56 +1,5 @@
-import torch.functional as F
-from torch import nn
-import numpy as np
 import matplotlib.pyplot as plt
-
-
-# class DiceLoss(nn.Module):
-#     def __init__(self, weight=None, size_average=True):
-#         super(DiceLoss, self).__init__()
-#
-#     def forward(self, inputs, targets, smooth=1):
-#         # comment out if your vitMaemodel contains a sigmoid or equivalent activation layer
-#         inputs = F.sigmoid(inputs)
-#
-#         # flatten label and prediction tensors
-#         inputs = inputs.view(-1)
-#         targets = targets.view(-1)
-#
-#         intersection = (inputs * targets).sum()
-#         dice = (2. * intersection + smooth) / (inputs.sum() + targets.sum() + smooth)
-#
-#         return 1 - dice
-
-def diceLoss(inputs, targets, smooth=1):
-    # comment out if your vitMaemodel contains a sigmoid or equivalent activation layer
-    inputs = F.sigmoid(inputs)
-
-    # flatten label and prediction tensors
-    inputs = inputs.view(-1)
-    targets = targets.view(-1)
-
-    intersection = (inputs * targets).sum()
-    dice = (2. * intersection + smooth) / (inputs.sum() + targets.sum() + smooth)
-
-    return 1 - dice
-
-
-def dice_coeff(inputs, target, smooth=1e-5):
-    intersection = 2.0 * (target * inputs).sum() + smooth
-    union = target.sum() + inputs.sum() + smooth
-    dice = intersection / union
-    return dice
-
-
-def dice_coef_loss(inputs, target):
-    return 1 - dice_coeff(inputs, target)
-
-
-def bce_dice_loss(inputs, target):
-    dice_score = dice_coef_loss(inputs, target)
-    bce_score = F.binary_cross_entropy_with_logits(inputs, target)
-
-    return bce_score + dice_score
+import numpy as np
 
 
 def plot_train_label(image, mask):
