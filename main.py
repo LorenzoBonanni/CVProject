@@ -8,6 +8,7 @@ from monai.losses import DiceCELoss
 
 from models.mae_unetr import MaeUnetr
 from trainer import Trainer
+from utilis.utils import plot_metrics, plot_subplots
 
 # from utilis.utils import diceLoss, bce_dice_loss, dice_coef_loss
 
@@ -111,8 +112,9 @@ if __name__ == '__main__':
         model=model,
         batch_size=64,
         device=device,
-        num_epochs=30,
-        optimizer=torch.optim.Adam(lr=1e-4, weight_decay=1e-5, params=model.get_parameters()),
+        num_epochs=40,
+        # optimizer=torch.optim.Adam(lr=1e-4, weight_decay=1e-5, params=model.get_parameters()),
+        optimizer=torch.optim.Adam(lr=1e-4, params=model.get_parameters()),
         criterion=DiceCELoss(to_onehot_y=True,
                              softmax=True,
                              squared_pred=False),
@@ -122,7 +124,20 @@ if __name__ == '__main__':
 
     # 3- TRAINING
     busi_trainer.train()
+    metrics = busi_trainer.get_metrics()
+    plot_metrics(metrics)
+
+    # 4- TESTING
     busi_trainer.test()
+
+    for i in [2, 3, 10, 20]:
+        image = busi_trainer.test_dataset[i][0]
+        mask = busi_trainer.test_dataset[i][1]
+        im = image.to(device)
+        pred = model(im.unsqueeze(0))
+        pred = pred.squeeze()
+
+        plot_subplots(im, mask, pred)
 
     # inputs['pixel_values']
 

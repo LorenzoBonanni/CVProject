@@ -35,6 +35,10 @@ class MaeUnetr(nn.Module):
     def train(self, **kwargs):
         self.unetrDecoder.train()
 
+    def eval(self, **kwargs):
+        self.mae.eval()
+        self.unetrDecoder.eval()
+
     def forward(self, inputs):
         outputs = self.mae(pixel_values=inputs)
         hidden_states = tuple(hs[:, 1:, :] for hs in outputs.hidden_states)
@@ -43,7 +47,5 @@ class MaeUnetr(nn.Module):
             x_in=inputs,
             hidden_states_out=hidden_states
         )
-
-
 
         return mask

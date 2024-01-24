@@ -49,6 +49,7 @@ class Trainer:
         self.best_epoch = 0
 
     def get_dataset(self, dataset_name, dataset_path):
+        LOGGER = logging.getLogger(__name__)
         image_processor = AutoImageProcessor.from_pretrained("facebook/vit-mae-base")
         mask_transforms = transforms.Compose([
             transforms.Resize([224, 224]),
@@ -59,6 +60,8 @@ class Trainer:
             train_df, test_df = get_data(dataset_path)
             train_dataset = BusiDataset(train_df, self.device, image_processor, mask_transforms)
             test_dataset = BusiDataset(test_df, self.device, image_processor, mask_transforms)
+            LOGGER.info(f"Length Train Dataset: {len(train_dataset)}")
+            LOGGER.info(f"Length Test Dataset: {len(test_dataset)}")
             return train_dataset, test_dataset
         elif dataset_name == "BRATS":
             train_df, test_df = get_data(dataset_path)
@@ -126,16 +129,10 @@ class Trainer:
         with torch.no_grad():
             for i, (images, masks) in enumerate(pbar := tqdm(self.test_loader)):
                 images, masks = images.to(self.device), masks.to(self.device)
-                batch_size = images.size(0)
-
                 outputs = self.model(images)
                 dice = self.criterion.dice(outputs, masks)
                 running_loss += dice
                 pbar.set_postfix({"Dice coefficient": torch.round(dice, decimals=4).item()})
-                # LOGGER.info(f'Epoch [{epoch + 1}/{self.num_epochs}], Train Loss: {avg_train_loss:.4f}')
-                # print(f'Batch {i}: Dice coefficient {dice/batch_size:.4f}')
-
-        # print(f'Total dice coefficient {test_dice/i:.4f}')
 
     def get_metrics(self):
         return {
