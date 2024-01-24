@@ -1,6 +1,7 @@
 import glob
 import logging
 
+import numpy as np
 import pandas as pd
 import torch
 import torchvision.transforms as transforms
@@ -13,14 +14,33 @@ from data.dataset import BusiDataset, BratsDataset
 
 
 # from utilis.utils import dice_coeff
+def count_class(dataset, class_names):
+    return [(dataset["image_path"].str.count(class_name) >= 1).sum() for class_name in class_names]
+
+
+def print_class_pct(subset_name, class_names, subset):
+    LOGGER = logging.getLogger(__name__)
+    base_str = f"{subset_name}"
+    classes_counts = count_class(subset, class_names)
+    for i, class_name in enumerate(class_names):
+        base_str += f" {class_name}: {classes_counts[i] / len(subset)} |"
+
+    LOGGER.info(base_str)
+
 
 def get_data(dataset_path):
     masks = glob.glob(f"{dataset_path}/*/*_mask.png")
     images = [mask_images.replace("_mask", "") for mask_images in masks]
     series = list(zip(images, masks))
     dataset = pd.DataFrame(series, columns=['image_path', 'mask_path'])
-    train, test = train_test_split(dataset, test_size=0.25)
-    return train, test
+    train, test = train_test_split(dataset, test_size=0.15, shuffle=True)
+    train, val = train_test_split(train, test_size=0.214285714, shuffle=True)  # 0.214285714×0.7 = 0.15
+    classes = ['benign', 'normal', 'malign']
+    print_class_pct("TRAIN", classes, train)
+    print_class_pct("TEST", classes, test)
+    print_class_pct("VAL", classes, val)
+
+    return train, test, val
 
 
 class Trainer:
@@ -33,9 +53,10 @@ class Trainer:
         self.num_epochs = num_epochs
         self.log_interval = 8
 
-        self.train_dataset, self.test_dataset = self.get_dataset(dataset_name, dataset_path)
+        self.train_dataset, self.test_dataset, self.val_dataset = self.get_dataset(dataset_name, dataset_path)
         self.train_loader = DataLoader(self.train_dataset, shuffle=True, batch_size=batch_size, pin_memory=True)
         self.test_loader = DataLoader(self.test_dataset, shuffle=False, batch_size=batch_size, pin_memory=True)
+        self.val_loader = DataLoader(self.val_dataset, shuffle=False, batch_size=batch_size, pin_memory=True)
 
         # Lists to store training and validation metrics
         self.train_losses = []
@@ -57,12 +78,14 @@ class Trainer:
         ])
 
         if dataset_name == "BUSI":
-            train_df, test_df = get_data(dataset_path)
+            train_df, test_df, val_df = get_data(dataset_path)
             train_dataset = BusiDataset(train_df, self.device, image_processor, mask_transforms)
             test_dataset = BusiDataset(test_df, self.device, image_processor, mask_transforms)
+            val_dataset = BusiDataset(val_df, self.device, image_processor, mask_transforms)
             LOGGER.info(f"Length Train Dataset: {len(train_dataset)}")
             LOGGER.info(f"Length Test Dataset: {len(test_dataset)}")
-            return train_dataset, test_dataset
+            LOGGER.info(f"Length Val Dataset: {len(val_dataset)}")
+            return train_dataset, test_dataset, val_dataset
         elif dataset_name == "BRATS":
             train_df, test_df = get_data(dataset_path)
             train_dataset = BratsDataset(train_df, self.device, image_processor, mask_transforms)
@@ -99,7 +122,6 @@ class Trainer:
                 # free_mem, total_mem = torch.cuda.mem_get_info(0)
                 # LOGGER.info(
                 #     f"BATCH {i + 1}/{n_batch} | USED MEMORY {((total_mem - free_mem) / total_mem) * 100}%")
-                batch_size = images.size(0)
                 images, masks = images.to(self.device), masks.to(self.device)
 
                 self.optimizer.zero_grad()
@@ -109,7 +131,6 @@ class Trainer:
                 loss.backward()
                 self.optimizer.step()
                 running_loss += loss.item()
-                # pbar.set_postfix(f"Loss {loss.item() / batch_size:.4f}")
                 pbar.set_postfix({"Loss": torch.round(loss, decimals=4).item()})
 
             avg_train_loss = running_loss / len(self.train_loader)
@@ -120,6 +141,8 @@ class Trainer:
 
             # Save best vitMaemodel
             self.save_best_model(epoch + 1, avg_train_loss)
+        with open('train_loss.npy', 'wb') as f:
+            np.save(f, self.train_losses, allow_pickle=True)
 
     def test(self):
         running_loss = 0.0
