@@ -201,6 +201,8 @@ class Trainer:
             'test_losses': self.test_losses,
             'train_dices': self.train_dices,
             'test_dices': self.test_dices,
+            'val_losses': self.val_losses,
+            'val_dices': self.val_dices,
             'best_model': self.best_model,
             'best_dice': self.best_dice,
             'best_epoch': self.best_epoch
