@@ -60,9 +60,11 @@ class Trainer:
 
         # Lists to store training and validation metrics
         self.train_losses = []
+        self.val_losses = []
         self.test_losses = []
         self.train_dices = []
         self.test_dices = []
+        self.val_dices = []
 
         # Best vitMaemodel and its metrics
         self.best_model = None
@@ -115,9 +117,10 @@ class Trainer:
         LOGGER.info(f"Start training on {self.device}")
         for epoch in range(self.num_epochs):
             running_loss = 0.0
+            running_dice = 0.0
 
             self.model.train()
-
+            # LOGGER.info(f"Epoch [{epoch + 1}/{self.num_epochs}], Learning Rate: {self.optimizer.param_groups[0]['lr']}")
             for i, (images, masks) in enumerate(pbar := tqdm(self.train_loader)):
                 # free_mem, total_mem = torch.cuda.mem_get_info(0)
                 # LOGGER.info(
@@ -127,35 +130,70 @@ class Trainer:
                 self.optimizer.zero_grad()
                 outputs = self.model(images)
                 loss = self.criterion(outputs, masks)
+                dice = self.criterion.dice(outputs, masks)
 
                 loss.backward()
                 self.optimizer.step()
                 running_loss += loss.item()
+                running_dice += dice.item()
                 pbar.set_postfix({"Loss": torch.round(loss, decimals=4).item()})
 
             avg_train_loss = running_loss / len(self.train_loader)
+            avg_train_dice = running_dice / len(self.train_loader)
             LOGGER.info(f'Epoch [{epoch + 1}/{self.num_epochs}], Train Loss: {avg_train_loss:.4f}')
 
             # Save metrics
             self.train_losses.append(avg_train_loss)
-
-            # Save best vitMaemodel
-            self.save_best_model(epoch + 1, avg_train_loss)
+            self.train_dices.append(avg_train_dice)
+            if epoch % 10 == 0:
+                self.validate(epoch)
         with open('train_loss.npy', 'wb') as f:
             np.save(f, self.train_losses, allow_pickle=True)
+        with open('val_loss.npy', 'wb') as f:
+            np.save(f, self.val_losses, allow_pickle=True)
 
+    @torch.no_grad()
     def test(self):
         running_loss = 0.0
         LOGGER = logging.getLogger(__name__)
         LOGGER.info(f"Start testing on {self.device}")
         self.model.eval()
-        with torch.no_grad():
-            for i, (images, masks) in enumerate(pbar := tqdm(self.test_loader)):
-                images, masks = images.to(self.device), masks.to(self.device)
-                outputs = self.model(images)
-                dice = self.criterion.dice(outputs, masks)
-                running_loss += dice
-                pbar.set_postfix({"Dice coefficient": torch.round(dice, decimals=4).item()})
+        for i, (images, masks) in enumerate(pbar := tqdm(self.test_loader)):
+            images, masks = images.to(self.device), masks.to(self.device)
+            outputs = self.model(images)
+            dice = self.criterion.dice(outputs, masks)
+            running_loss += dice
+            pbar.set_postfix({"Dice coefficient": torch.round(dice, decimals=4).item()})
+
+    @torch.no_grad()
+    def validate(self, epoch):
+        LOGGER = logging.getLogger(__name__)
+        running_loss = 0.0
+        running_dice = 0.0
+
+        self.model.eval()
+
+        for i, (images, masks) in enumerate(pbar := tqdm(self.val_loader)):
+            images, masks = images.to(self.device), masks.to(self.device)
+            outputs = self.model(images)
+
+            loss = self.criterion(outputs, masks)
+            dice = self.criterion.dice(outputs, masks)
+
+            running_loss += loss.item()
+            running_dice += dice.item()
+            pbar.set_postfix({"Val Loss": torch.round(loss, decimals=4).item()})
+
+        avg_val_loss = running_loss / len(self.train_loader)
+        avg_val_dice = running_dice / len(self.train_loader)
+        LOGGER.info(f'Epoch [{epoch + 1}/{self.num_epochs}], Val Loss: {avg_val_loss:.4f}, Val Dice {avg_val_dice:.4f}')
+
+        # Save metrics
+        self.val_losses.append(avg_val_loss)
+        self.val_dices.append(avg_val_dice)
+
+        # Save best vitMaemodel
+        self.save_best_model(epoch + 1, avg_val_dice)
 
     def get_metrics(self):
         return {
