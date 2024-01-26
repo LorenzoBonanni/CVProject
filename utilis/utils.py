@@ -28,18 +28,19 @@ def plot_train_label(image, mask):
 def plot_metrics(metrics):
     num_epochs = len(metrics['train_losses'])
     epochs = np.arange(1, num_epochs + 1)
+    epochs_val = metrics['val_epochs']
 
     # Convert tensors to NumPy arrays
     train_losses_np = metrics['train_losses']
     val_losses_np = metrics['val_losses']
-    train_dices_np = [to_numpy(dice) for dice in metrics['train_dices']]
-    val_dices_np = [to_numpy(dice) for dice in metrics['val_dices']]
+    train_dices_np = metrics['train_dices']
+    val_dices_np = metrics['val_dices']
 
     # Plot Losses
     plt.figure(figsize=(12, 5))
     plt.subplot(1, 2, 1)
     plt.plot(epochs, train_losses_np, label='Train Loss')
-    plt.plot(epochs, val_losses_np, label='Val Loss')
+    plt.plot(epochs_val, val_losses_np, label='Val Loss')
     plt.title('Training Loss')
     plt.xlabel('Epoch')
     plt.ylabel('Loss')
@@ -48,7 +49,7 @@ def plot_metrics(metrics):
     # Plot Dice Coefficients
     plt.subplot(1, 2, 2)
     plt.plot(epochs, train_dices_np, label='Train Dice')
-    plt.plot(epochs, val_dices_np, label='Val Dice')
+    plt.plot(epochs_val, val_dices_np, label='Val Dice')
     plt.title('Training Dice Coefficients')
     plt.xlabel('Epoch')
     plt.ylabel('Dice Coefficient')

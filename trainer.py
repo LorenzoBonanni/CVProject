@@ -14,7 +14,6 @@ import wandb
 from data.dataset import BusiDataset, BratsDataset
 
 
-# from utilis.utils import dice_coeff
 def count_class(dataset, class_names):
     return [(dataset["image_path"].str.count(class_name) >= 1).sum() for class_name in class_names]
 
@@ -67,6 +66,7 @@ class Trainer:
         self.train_dices = []
         self.test_dices = []
         self.val_dices = []
+        self.val_epochs = []
 
         # Best vitMaemodel and its metrics
         self.best_model = None
@@ -132,7 +132,7 @@ class Trainer:
                 self.optimizer.zero_grad()
                 outputs = self.model(images)
                 loss = self.criterion(outputs, masks)
-                dice = self.criterion.dice(outputs, masks)
+                dice = 1 + self.criterion.dice(outputs, masks)
 
                 loss.backward()
                 self.optimizer.step()
@@ -144,13 +144,14 @@ class Trainer:
             avg_train_dice = running_dice / len(self.train_loader)
             LOGGER.info(
                 f'Epoch [{epoch + 1}/{self.num_epochs}], Train Loss: {avg_train_loss:.4f}, Train Dice: {avg_train_dice:.4f}')
-            wandb.log({"train loss": avg_train_loss, "train dice": avg_train_dice})
+            wandb.log({"train loss": avg_train_loss, "train dice": avg_train_dice}, step=epoch)
 
             # Save metrics
             self.train_losses.append(avg_train_loss)
             self.train_dices.append(avg_train_dice)
             if epoch % 10 == 0:
                 self.validate(epoch)
+                self.val_epochs.append(epoch+1)
         with open('train_loss.npy', 'wb') as f:
             np.save(f, self.train_losses, allow_pickle=True)
         with open('val_loss.npy', 'wb') as f:
@@ -165,7 +166,7 @@ class Trainer:
         for i, (images, masks) in enumerate(pbar := tqdm(self.test_loader)):
             images, masks = images.to(self.device), masks.to(self.device)
             outputs = self.model(images)
-            dice = self.criterion.dice(outputs, masks)
+            dice = 1 + self.criterion.dice(outputs, masks)
             running_dice += dice
             pbar.set_postfix({"Dice coefficient": torch.round(dice, decimals=4).item()})
 
@@ -186,7 +187,7 @@ class Trainer:
             outputs = self.model(images)
 
             loss = self.criterion(outputs, masks)
-            dice = self.criterion.dice(outputs, masks)
+            dice = 1 + self.criterion.dice(outputs, masks)
 
             running_loss += loss.item()
             running_dice += dice.item()
@@ -194,15 +195,15 @@ class Trainer:
 
         avg_val_loss = running_loss / len(self.train_loader)
         avg_val_dice = running_dice / len(self.train_loader)
-        LOGGER.info(f'Epoch [{epoch + 1}/{self.num_epochs}], Val Loss: {avg_val_loss:.4f}, Val Dice {avg_val_dice:.4f}')
+        LOGGER.info(f'Epoch [{epoch}/{self.num_epochs}], Val Loss: {avg_val_loss:.4f}, Val Dice {avg_val_dice:.4f}')
 
         # Save metrics
         self.val_losses.append(avg_val_loss)
         self.val_dices.append(avg_val_dice)
-        wandb.log({"val loss": avg_val_loss, "val dice": avg_val_dice})
+        wandb.log({"val loss": avg_val_loss, "val dice": avg_val_dice}, step=epoch)
 
         # Save best vitMaemodel
-        self.save_best_model(epoch + 1, avg_val_dice)
+        self.save_best_model(epoch, avg_val_dice)
 
     def get_metrics(self):
         return {
@@ -214,5 +215,6 @@ class Trainer:
             'val_dices': self.val_dices,
             'best_model': self.best_model,
             'best_dice': self.best_dice,
-            'best_epoch': self.best_epoch
+            'best_epoch': self.best_epoch,
+            'val_epochs': self.val_epochs
         }
