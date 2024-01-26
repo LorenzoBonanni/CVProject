@@ -4,6 +4,7 @@ import random
 
 import numpy as np
 import torch
+import wandb
 from monai.losses import DiceCELoss
 
 from models.mae_unetr import MaeUnetr
@@ -105,10 +106,8 @@ if __name__ == '__main__':
     # 1- MODEL
     model = MaeUnetr()
     model.to(device)
-
     # 2- DATA LOADING AND TRAINER
-    # With trainer you define also datasets and data loaders
-    busi_trainer = Trainer(
+    trainer = Trainer(
         model=model,
         batch_size=64,
         device=device,
@@ -121,18 +120,27 @@ if __name__ == '__main__':
         dataset_name="BUSI",
         dataset_path="/media/data/lbonanni/Dataset_BUSI_with_GT"
     )
+    wandb.init(
+        project="UnetMae",
+        config={
+            "learning_rate": trainer.optimizer.param_groups[0]['lr'],
+            "dataset": trainer.dataset_name,
+            "epochs": trainer.num_epochs,
+        }
+    )
+    wandb.watch(model, log_freq=100)
 
     # 3- TRAINING
-    busi_trainer.train()
-    metrics = busi_trainer.get_metrics()
+    trainer.train()
+    metrics = trainer.get_metrics()
     plot_metrics(metrics)
 
     # 4- TESTING
-    busi_trainer.test()
+    trainer.test()
 
     for i in [2, 3, 10, 20]:
-        image = busi_trainer.test_dataset[i][0]
-        mask = busi_trainer.test_dataset[i][1]
+        image = trainer.test_dataset[i][0]
+        mask = trainer.test_dataset[i][1]
         im = image.to(device)
         pred = model(im.unsqueeze(0))
         pred = pred.squeeze()

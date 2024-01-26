@@ -10,6 +10,7 @@ from torch.utils.data import DataLoader
 from tqdm import tqdm
 from transformers import AutoImageProcessor
 
+import wandb
 from data.dataset import BusiDataset, BratsDataset
 
 
@@ -52,6 +53,7 @@ class Trainer:
         self.device = device
         self.num_epochs = num_epochs
         self.log_interval = 8
+        self.dataset_name = dataset_name
 
         self.train_dataset, self.test_dataset, self.val_dataset = self.get_dataset(dataset_name, dataset_path)
         self.train_loader = DataLoader(self.train_dataset, shuffle=True, batch_size=batch_size, pin_memory=True)
@@ -89,7 +91,7 @@ class Trainer:
             LOGGER.info(f"Length Val Dataset: {len(val_dataset)}")
             return train_dataset, test_dataset, val_dataset
         elif dataset_name == "BRATS":
-            train_df, test_df = get_data(dataset_path)
+            train_df, test_df, val_df = get_data(dataset_path)
             train_dataset = BratsDataset(train_df, self.device, image_processor, mask_transforms)
             test_dataset = BratsDataset(test_df, self.device, image_processor, mask_transforms)
             return train_dataset, test_dataset
@@ -140,7 +142,9 @@ class Trainer:
 
             avg_train_loss = running_loss / len(self.train_loader)
             avg_train_dice = running_dice / len(self.train_loader)
-            LOGGER.info(f'Epoch [{epoch + 1}/{self.num_epochs}], Train Loss: {avg_train_loss:.4f}')
+            LOGGER.info(
+                f'Epoch [{epoch + 1}/{self.num_epochs}], Train Loss: {avg_train_loss:.4f}, Train Dice: {avg_train_dice:.4f}')
+            wandb.log({"train loss": avg_train_loss, "train dice": avg_train_dice})
 
             # Save metrics
             self.train_losses.append(avg_train_loss)
@@ -154,7 +158,7 @@ class Trainer:
 
     @torch.no_grad()
     def test(self):
-        running_loss = 0.0
+        running_dice = 0.0
         LOGGER = logging.getLogger(__name__)
         LOGGER.info(f"Start testing on {self.device}")
         self.model.eval()
@@ -162,8 +166,12 @@ class Trainer:
             images, masks = images.to(self.device), masks.to(self.device)
             outputs = self.model(images)
             dice = self.criterion.dice(outputs, masks)
-            running_loss += dice
+            running_dice += dice
             pbar.set_postfix({"Dice coefficient": torch.round(dice, decimals=4).item()})
+
+        avg_dice = running_dice / len(self.test_loader)
+        LOGGER.info(f"Test Dice: {avg_dice}")
+        wandb.log({"test dice": avg_dice})
 
     @torch.no_grad()
     def validate(self, epoch):
@@ -191,6 +199,7 @@ class Trainer:
         # Save metrics
         self.val_losses.append(avg_val_loss)
         self.val_dices.append(avg_val_dice)
+        wandb.log({"val loss": avg_val_loss, "val dice": avg_val_dice})
 
         # Save best vitMaemodel
         self.save_best_model(epoch + 1, avg_val_dice)
