@@ -4,14 +4,12 @@ import random
 
 import numpy as np
 import torch
-import wandb
 from monai.losses import DiceCELoss
 
+import wandb
 from models.mae_unetr import MaeUnetr
 from trainer import Trainer
-from utilis.utils import plot_metrics, plot_subplots
-
-# from utilis.utils import diceLoss, bce_dice_loss, dice_coef_loss
+from utilis.utils import plot_metrics, plot_subplots, get_opt
 
 SEED = 5
 LOGGER = logging.getLogger(__name__)
@@ -35,64 +33,8 @@ def seed_everything(seed: int):
     torch.manual_seed(seed)
 
 
-# def show_image(image, title=''):
-#     # image is [H, W, 3]
-#     assert image.shape[2] == 3
-#     plt.imshow(torch.clip((image * imagenet_std + imagenet_mean) * 255, 0, 255).int())
-#     plt.title(title, fontsize=16)
-#     plt.axis('off')
-#     return
-#
-#
-# def visualize(pixel_values, vitMaemodel):
-#     # global imagenet_mean
-#     # global imagenet_std
-#     # imagenet_mean = np.array(image_processor.image_mean)
-#     # imagenet_std = np.array(image_processor.image_std)
-#
-#     # forward pass
-#     outputs = vitMaemodel(pixel_values)
-#     y = vitMaemodel.unpatchify(outputs.logits)
-#     # questa cosa mistica cambia solo l'ordine della size
-#     y = torch.einsum('nchw->nhwc', y).detach().cpu().squeeze(0)
-#     show_image(y, "reconstruction")
-#     # plt.imshow(y.squeeze(0).numpy())
-#     # plt.show()
-#
-#     # # visualize the mask
-#     # mask = outputs.mask.detach()
-#     # mask = mask.unsqueeze(-1).repeat(1, 1, vitMaemodel.config.patch_size ** 2 * 3)  # (N, H*W, p*p*3)
-#     # mask = vitMaemodel.unpatchify(mask)  # 1 is removing, 0 is keeping
-#     # mask = torch.einsum('nchw->nhwc', mask).detach().cpu()
-#     #
-#     # x = torch.einsum('nchw->nhwc', pixel_values)
-#     #
-#     # # masked image
-#     # im_masked = x * (1 - mask)
-#     #
-#     # # MAE reconstruction pasted with visible patches
-#     # im_paste = x * (1 - mask) + y * mask
-#     #
-#     # # make the plt figure larger
-#     # plt.rcParams['figure.figsize'] = [24, 24]
-#     #
-#     # plt.subplot(1, 4, 1)
-#     # show_image(x[0], "original")
-#     #
-#     # plt.subplot(1, 4, 2)
-#     # show_image(im_masked[0], "masked")
-#     #
-#     # plt.subplot(1, 4, 3)
-#     # show_image(y[0], "reconstruction")
-#     #
-#     # plt.subplot(1, 4, 4)
-#     # show_image(im_paste[0], "reconstruction + visible")
-#     #
-#     plt.show()
-
-
 if __name__ == '__main__':
-    # opt = get_opt()
+    n_epoch, lr, scheduler, decay_factor = get_opt()
     logging.basicConfig(
         level=logging.INFO,
         format='%(asctime)s %(levelname)-8s %(message)s',
@@ -111,45 +53,41 @@ if __name__ == '__main__':
         model=model,
         batch_size=64,
         device=device,
-        num_epochs=200,
-        # optimizer=torch.optim.Adam(lr=1e-4, weight_decay=1e-5, params=model.get_parameters()),
-        optimizer=torch.optim.Adam(lr=1e-4, params=model.get_parameters()),
+        num_epochs=n_epoch,
+        optimizer=torch.optim.Adam(lr=lr, params=model.get_parameters()),
         criterion=DiceCELoss(to_onehot_y=True,
                              softmax=True,
                              squared_pred=False),
         dataset_name="BUSI",
-        dataset_path="/media/data/lbonanni/Dataset_BUSI_with_GT"
+        dataset_path="/media/data/lbonanni/Dataset_BUSI_with_GT",
+        scheduler=scheduler,
+        decay_factor=decay_factor
     )
-    wandb.init(
+    run = wandb.init(
         project="UnetMae",
         config={
-            "learning_rate": trainer.optimizer.param_groups[0]['lr'],
+            "learning_rate": lr,
             "dataset": trainer.dataset_name,
-            "epochs": trainer.num_epochs,
+            "epochs": n_epoch,
+            "scheduler": scheduler,
+            "decay_factor": decay_factor
         }
     )
-    wandb.watch(model, log_freq=100)
 
     # 3- TRAINING
     trainer.train()
     metrics = trainer.get_metrics()
-    plot_metrics(metrics)
+    fig = plot_metrics(metrics)
+    fig.savefig(f'metrics_{run.name}.png', dpi=500, facecolor='white', edgecolor='none')
 
     # 4- TESTING
     trainer.test()
-
-    for i in [2, 3, 10, 20]:
+    image_indices = random.sample(range(len(trainer.test_dataset)), 10)
+    for i in image_indices:
         image = trainer.test_dataset[i][0]
         mask = trainer.test_dataset[i][1]
         im = image.to(device)
         pred = model(im.unsqueeze(0))
         pred = pred.squeeze()
 
-        plot_subplots(im, mask, pred)
-
-    # inputs['pixel_values']
-
-    # visualize(inputs['pixel_values'], vitMaemodel)
-
-    # plt.imshow(a.argmax(dim=1).squeeze(0).detach().numpy(), cmap='gray')
-    # plt.show()
+        plot_subplots(im, mask, pred, trainer.imagenet_mean, trainer.imagenet_std)

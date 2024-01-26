@@ -1,3 +1,5 @@
+import argparse
+
 import matplotlib.pyplot as plt
 import numpy as np
 
@@ -37,7 +39,7 @@ def plot_metrics(metrics):
     val_dices_np = metrics['val_dices']
 
     # Plot Losses
-    plt.figure(figsize=(12, 5))
+    fig = plt.figure(figsize=(12, 5))
     plt.subplot(1, 2, 1)
     plt.plot(epochs, train_losses_np, label='Train Loss')
     plt.plot(epochs_val, val_losses_np, label='Val Loss')
@@ -57,6 +59,7 @@ def plot_metrics(metrics):
 
     plt.tight_layout()
     plt.show()
+    return fig
 
 
 def to_numpy(tensor):
@@ -64,9 +67,10 @@ def to_numpy(tensor):
     return tensor.cpu().detach().numpy()
 
 
-def plot_subplots(image, mask, predicted, threshold=0.5):
+def plot_subplots(image, mask, predicted, imagenet_mean, imagenet_std):
     # Convert tensors to NumPy arrays
     image_np, mask_np, predicted_np = map(to_numpy, (image, mask, predicted))
+    image_np = np.clip((image * imagenet_std + imagenet_mean) * 255, 0, 255).int()
 
     # Threshold the predicted values
     predicted_np_thresholded = np.expand_dims(np.argmax(predicted_np, axis=0), 0)
@@ -76,10 +80,20 @@ def plot_subplots(image, mask, predicted, threshold=0.5):
     # Plot Image, Mask, Predicted, and Thresholded Predicted
     titles = ['Image', 'Mask', 'Predicted']
     for ax, data, title in zip(axes, [image_np, mask_np, predicted_np_thresholded], titles):
-        # data = torch.einsum('chw->hwc', data)
         data = np.transpose(data, (1, 2, 0))
         ax.imshow(data, cmap='gray')
         ax.set_title(title)
         ax.axis('off')
 
     plt.show()
+
+
+def get_opt():
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--n_epoch", type=int, help="Number of epochs (integer value)", default=200)
+    parser.add_argument("--lr", type=float, help="Learning rate (float value)", default=1e-4)
+    parser.add_argument("--decay_factor", type=float, help="Decay Factor (float value)", default=0)
+    parser.add_argument("--scheduler", action="store_true", help="Set scheduler flag to True", default=False)
+
+    args = parser.parse_args()
+    return args.n_epoch, args.lr, args.scheduler, args.decay_factor

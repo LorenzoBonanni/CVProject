@@ -44,8 +44,10 @@ def get_data(dataset_path):
 
 
 class Trainer:
-    def __init__(self, model, optimizer, criterion, dataset_name,
-                 dataset_path, batch_size, device, num_epochs):
+    def __init__(self, model, optimizer, criterion, dataset_name, dataset_path, batch_size, device, num_epochs,
+                 scheduler, decay_factor):
+        self.imagenet_std = None
+        self.imagenet_mean = None
         self.model = model
         self.optimizer = optimizer
         self.criterion = criterion
@@ -72,10 +74,14 @@ class Trainer:
         self.best_model = None
         self.best_dice = 0.0
         self.best_epoch = 0
+        self.scheduler = scheduler
+        self.decay_factor = decay_factor
 
     def get_dataset(self, dataset_name, dataset_path):
         LOGGER = logging.getLogger(__name__)
         image_processor = AutoImageProcessor.from_pretrained("facebook/vit-mae-base")
+        self.imagenet_mean = np.array(image_processor.image_mean)
+        self.imagenet_std = np.array(image_processor.image_std)
         mask_transforms = transforms.Compose([
             transforms.Resize([224, 224]),
             transforms.ToTensor(),
@@ -120,19 +126,20 @@ class Trainer:
         for epoch in range(self.num_epochs):
             running_loss = 0.0
             running_dice = 0.0
+            lr = self.optim.param_groups[0]['lr']
+            if self.scheduler:
+                self.optim.param_groups[0]['lr'] = lr * (self.decay_factor ** (epoch // 10))
+            wandb.log({"learning rate": lr})
 
             self.model.train()
-            # LOGGER.info(f"Epoch [{epoch + 1}/{self.num_epochs}], Learning Rate: {self.optimizer.param_groups[0]['lr']}")
             for i, (images, masks) in enumerate(pbar := tqdm(self.train_loader)):
-                # free_mem, total_mem = torch.cuda.mem_get_info(0)
-                # LOGGER.info(
-                #     f"BATCH {i + 1}/{n_batch} | USED MEMORY {((total_mem - free_mem) / total_mem) * 100}%")
+
                 images, masks = images.to(self.device), masks.to(self.device)
 
                 self.optimizer.zero_grad()
                 outputs = self.model(images)
                 loss = self.criterion(outputs, masks)
-                dice = 1 + self.criterion.dice(outputs, masks)
+                dice = self.criterion.dice(outputs, masks)
 
                 loss.backward()
                 self.optimizer.step()
@@ -152,10 +159,6 @@ class Trainer:
             if epoch % 10 == 0:
                 self.validate(epoch)
                 self.val_epochs.append(epoch+1)
-        with open('train_loss.npy', 'wb') as f:
-            np.save(f, self.train_losses, allow_pickle=True)
-        with open('val_loss.npy', 'wb') as f:
-            np.save(f, self.val_losses, allow_pickle=True)
 
     @torch.no_grad()
     def test(self):
@@ -166,7 +169,7 @@ class Trainer:
         for i, (images, masks) in enumerate(pbar := tqdm(self.test_loader)):
             images, masks = images.to(self.device), masks.to(self.device)
             outputs = self.model(images)
-            dice = 1 + self.criterion.dice(outputs, masks)
+            dice = self.criterion.dice(outputs, masks)
             running_dice += dice
             pbar.set_postfix({"Dice coefficient": torch.round(dice, decimals=4).item()})
 
@@ -187,7 +190,7 @@ class Trainer:
             outputs = self.model(images)
 
             loss = self.criterion(outputs, masks)
-            dice = 1 + self.criterion.dice(outputs, masks)
+            dice = self.criterion.dice(outputs, masks)
 
             running_loss += loss.item()
             running_dice += dice.item()
