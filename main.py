@@ -1,3 +1,4 @@
+import copy
 import logging
 import os
 import random
@@ -61,7 +62,8 @@ if __name__ == '__main__':
         dataset_name="BUSI",
         dataset_path="/media/data/lbonanni/Dataset_BUSI_with_GT",
         scheduler=scheduler,
-        decay_factor=decay_factor
+        decay_factor=decay_factor,
+        start_lr=copy.copy(lr)
     )
     run = wandb.init(
         project="UnetMae",
@@ -82,12 +84,12 @@ if __name__ == '__main__':
 
     # 4- TESTING
     trainer.test()
-    image_indices = random.sample(range(len(trainer.test_dataset)), 10)
-    for i in image_indices:
-        image = trainer.test_dataset[i][0]
-        mask = trainer.test_dataset[i][1]
-        im = image.to(device)
-        pred = model(im.unsqueeze(0))
-        pred = pred.squeeze()
-
-        plot_subplots(im, mask, pred, trainer.imagenet_mean, trainer.imagenet_std)
+    # image_indices = random.sample(range(len(trainer.test_dataset)), 10)
+    # for i in image_indices:
+    #     image = trainer.test_dataset[i][0]
+    #     mask = trainer.test_dataset[i][1]
+    #     im = image.to(device)
+    #     pred = model(im.unsqueeze(0))
+    #     pred = pred.squeeze()
+    #
+    #     plot_subplots(im, mask, pred, trainer.imagenet_mean, trainer.imagenet_std)

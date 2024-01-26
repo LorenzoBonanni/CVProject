@@ -45,7 +45,7 @@ def get_data(dataset_path):
 
 class Trainer:
     def __init__(self, model, optimizer, criterion, dataset_name, dataset_path, batch_size, device, num_epochs,
-                 scheduler, decay_factor):
+                 scheduler, decay_factor, start_lr):
         self.imagenet_std = None
         self.imagenet_mean = None
         self.model = model
@@ -76,6 +76,7 @@ class Trainer:
         self.best_epoch = 0
         self.scheduler = scheduler
         self.decay_factor = decay_factor
+        self.start_lr = start_lr
 
     def get_dataset(self, dataset_name, dataset_path):
         LOGGER = logging.getLogger(__name__)
@@ -126,9 +127,9 @@ class Trainer:
         for epoch in range(self.num_epochs):
             running_loss = 0.0
             running_dice = 0.0
-            lr = self.optim.param_groups[0]['lr']
+            lr = self.optimizer.param_groups[0]['lr']
             if self.scheduler:
-                self.optim.param_groups[0]['lr'] = lr * (self.decay_factor ** (epoch // 10))
+                self.optimizer.param_groups[0]['lr'] = self.start_lr * (self.decay_factor ** (epoch // 10))
             wandb.log({"learning rate": lr})
 
             self.model.train()
@@ -151,7 +152,7 @@ class Trainer:
             avg_train_dice = running_dice / len(self.train_loader)
             LOGGER.info(
                 f'Epoch [{epoch + 1}/{self.num_epochs}], Train Loss: {avg_train_loss:.4f}, Train Dice: {avg_train_dice:.4f}')
-            wandb.log({"train loss": avg_train_loss, "train dice": avg_train_dice}, step=epoch)
+            wandb.log({"train loss": avg_train_loss, "train dice": avg_train_dice}, step=epoch+1)
 
             # Save metrics
             self.train_losses.append(avg_train_loss)
@@ -203,7 +204,7 @@ class Trainer:
         # Save metrics
         self.val_losses.append(avg_val_loss)
         self.val_dices.append(avg_val_dice)
-        wandb.log({"val loss": avg_val_loss, "val dice": avg_val_dice}, step=epoch)
+        wandb.log({"val loss": avg_val_loss, "val dice": avg_val_dice}, step=epoch+1)
 
         # Save best vitMaemodel
         self.save_best_model(epoch, avg_val_dice)

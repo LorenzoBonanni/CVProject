@@ -90,10 +90,10 @@ def plot_subplots(image, mask, predicted, imagenet_mean, imagenet_std):
 
 def get_opt():
     parser = argparse.ArgumentParser()
-    parser.add_argument("--n_epoch", type=int, help="Number of epochs (integer value)", default=200)
+    parser.add_argument("--epochs", type=int, help="Number of epochs (integer value)", default=200)
     parser.add_argument("--lr", type=float, help="Learning rate (float value)", default=1e-4)
     parser.add_argument("--decay_factor", type=float, help="Decay Factor (float value)", default=0)
-    parser.add_argument("--scheduler", action="store_true", help="Set scheduler flag to True", default=False)
+    parser.add_argument("--scheduler", type=bool, help="Set scheduler flag to True", default=False)
 
     args = parser.parse_args()
-    return args.n_epoch, args.lr, args.scheduler, args.decay_factor
+    return args.epochs, args.lr, args.scheduler, args.decay_factor
