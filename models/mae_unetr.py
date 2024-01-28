@@ -6,20 +6,17 @@ from models.unetr_decoder import UNETR_decoder
 
 class MaeUnetr(nn.Module):
 
-    def __init__(self, *args, **kwargs):
+    def __init__(self, train_mae, *args, **kwargs):
         super().__init__(*args, **kwargs)
-
+        self.train_mae = train_mae
         vitMaemodel = ViTMAEForPreTraining.from_pretrained("facebook/vit-mae-base")
-        for param in vitMaemodel.parameters():
-            param.requires_grad = False
-
         vitmae_encoder = vitMaemodel.vit
         vitmae_encoder.embeddings.config.mask_ratio = 0
         vitmae_encoder.config.output_hidden_states = True
         decoder = UNETR_decoder(
             in_channels=3,
             out_channels=2,
-            img_size=(224, 224),  # TODO replace
+            img_size=(224, 224),
             patch_size=16,
             feature_size=16,
             hidden_size=768,
@@ -29,10 +26,19 @@ class MaeUnetr(nn.Module):
         self.mae = vitMaemodel
         self.unetrDecoder = decoder
 
+    def freeze_mae(self):
+        for param in self.mae.parameters():
+            param.requires_grad = False
+
     def get_parameters(self):
-        return self.unetrDecoder.parameters()
+        if not self.train_mae:
+            return self.unetrDecoder.parameters()
+        else:
+            return list(self.mae.parameters()) + list(self.unetrDecoder.parameters())
 
     def train(self, **kwargs):
+        if self.train_mae:
+            self.mae.train()
         self.unetrDecoder.train()
 
     def eval(self, **kwargs):

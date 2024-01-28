@@ -5,17 +5,16 @@ import random
 
 import numpy as np
 import torch
+import wandb
 from monai.losses import DiceCELoss
 
-import wandb
 from models.mae_unetr import MaeUnetr
 from trainer import Trainer
-from utilis.utils import plot_metrics, plot_subplots, get_opt
+from utilis.utils import plot_metrics, get_opt
 
 SEED = 5
 LOGGER = logging.getLogger(__name__)
 use_cuda = torch.cuda.is_available()
-device = torch.device('cuda' if use_cuda else 'cpu')
 
 
 def seed_everything(seed: int):
@@ -34,8 +33,10 @@ def seed_everything(seed: int):
     torch.manual_seed(seed)
 
 
-if __name__ == '__main__':
-    n_epoch, lr, scheduler, decay_factor = get_opt()
+def main():
+    opt = get_opt()
+    device = torch.device(f'cuda:{opt.device}' if use_cuda else 'cpu')
+    n_epoch, lr, scheduler, decay_factor = opt.epochs, opt.lr, opt.scheduler, opt.decay_factor
     logging.basicConfig(
         level=logging.INFO,
         format='%(asctime)s %(levelname)-8s %(message)s',
@@ -47,7 +48,7 @@ if __name__ == '__main__':
     seed_everything(SEED)
 
     # 1- MODEL
-    model = MaeUnetr()
+    model = MaeUnetr(opt.train_mae)
     model.to(device)
     # 2- DATA LOADING AND TRAINER
     trainer = Trainer(
@@ -67,16 +68,31 @@ if __name__ == '__main__':
     )
     run = wandb.init(
         project="UnetMae",
-        config={
-            "learning_rate": lr,
-            "dataset": trainer.dataset_name,
-            "epochs": n_epoch,
-            "scheduler": scheduler,
-            "decay_factor": decay_factor
-        }
+        config=opt.__dict__
     )
 
     # 3- TRAINING
+    # Mae
+    if opt.train_mae:
+        LOGGER.info(f"Training All the Network")
+        trainer2 = Trainer(
+            model=model,
+            batch_size=16,
+            device=device,
+            num_epochs=opt.mae_epochs,
+            optimizer=torch.optim.Adam(lr=opt.mae_lr, params=model.get_parameters()),
+            criterion=DiceCELoss(to_onehot_y=True,
+                                 softmax=True,
+                                 squared_pred=False),
+            dataset_name="BUSI",
+            dataset_path="/media/data/lbonanni/Dataset_BUSI_with_GT",
+            scheduler=False,
+            decay_factor=decay_factor,
+            start_lr=copy.copy(lr)
+        )
+        trainer2.train()
+        model.train_mae = False
+    model.freeze_mae()
     trainer.train()
     metrics = trainer.get_metrics()
     fig = plot_metrics(metrics)
@@ -93,3 +109,7 @@ if __name__ == '__main__':
     #     pred = pred.squeeze()
     #
     #     plot_subplots(im, mask, pred, trainer.imagenet_mean, trainer.imagenet_std)
+
+
+if __name__ == '__main__':
+    main()

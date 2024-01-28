@@ -72,7 +72,7 @@ class Trainer:
 
         # Best vitMaemodel and its metrics
         self.best_model = None
-        self.best_dice = 0.0
+        self.best_dice = np.inf
         self.best_epoch = 0
         self.scheduler = scheduler
         self.decay_factor = decay_factor
@@ -106,7 +106,7 @@ class Trainer:
             raise ValueError(f"Unrecognized Dataset named {dataset_name}")
 
     def save_best_model(self, epoch, dice):
-        if dice > self.best_dice:
+        if dice < self.best_dice:
             LOGGER = logging.getLogger(__name__)
             LOGGER.info(f"Saved New Model at Epoch {epoch}")
             self.best_dice = dice
@@ -130,7 +130,8 @@ class Trainer:
             lr = self.optimizer.param_groups[0]['lr']
             if self.scheduler:
                 self.optimizer.param_groups[0]['lr'] = self.start_lr * (self.decay_factor ** (epoch // 10))
-            wandb.log({"learning rate": lr})
+                # self.optimizer.param_groups[0]['lr'] = self.start_lr * (self.decay_factor ** (epoch // 20))
+            wandb.log({"learning rate": lr}, step=epoch+1)
 
             self.model.train()
             for i, (images, masks) in enumerate(pbar := tqdm(self.train_loader)):

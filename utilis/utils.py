@@ -88,12 +88,22 @@ def plot_subplots(image, mask, predicted, imagenet_mean, imagenet_std):
     plt.show()
 
 
+def boolean_string(s):
+    if s not in {'False', 'True'}:
+        raise ValueError('Not a valid boolean string')
+    return s == 'True'
+
+
 def get_opt():
     parser = argparse.ArgumentParser()
     parser.add_argument("--epochs", type=int, help="Number of epochs (integer value)", default=200)
     parser.add_argument("--lr", type=float, help="Learning rate (float value)", default=1e-4)
-    parser.add_argument("--decay_factor", type=float, help="Decay Factor (float value)", default=0)
-    parser.add_argument("--scheduler", type=bool, help="Set scheduler flag to True", default=False)
-
+    parser.add_argument("--decay_factor", type=float, help="Decay Factor (float value)", default=0.8)
+    parser.add_argument("--scheduler", type=boolean_string, help="Set scheduler flag to True", default=False)
+    parser.add_argument("--train_mae", type=boolean_string, help="Set scheduler flag to True", default=False)
+    parser.add_argument("--mae_epochs", type=int, help="Number of epochs (integer value)", default=0)
+    parser.add_argument("--mae_lr", type=float, help="Learning rate (float value)", default=1e-4)
+    parser.add_argument("--device", type=int, help="number of device", default=0)
     args = parser.parse_args()
-    return args.epochs, args.lr, args.scheduler, args.decay_factor
+    args.epochs -= args.mae_epochs
+    return args
