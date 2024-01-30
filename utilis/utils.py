@@ -188,6 +188,8 @@ def get_opt():
     parser.add_argument("--mae_epochs", type=int, help="Number of epochs (integer value)", default=0)
     parser.add_argument("--mae_lr", type=float, help="Learning rate (float value)", default=1e-4)
     parser.add_argument("--device", type=int, help="number of device", default=0)
+    parser.add_argument("--batch_size", type=int, help="size of the batch", default=64)
+    parser.add_argument("--model_name", type=str, help="name of the model to train", default="MAE_UNETR")
     args = parser.parse_args()
     args.epochs -= args.mae_epochs
     return args

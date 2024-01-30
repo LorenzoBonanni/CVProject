@@ -46,7 +46,7 @@ def main():
     seed_everything(SEED)
     opt = get_opt()
     device = torch.device(f'cuda:{opt.device}' if use_cuda else 'cpu')
-    n_epoch, lr, scheduler, decay_factor = opt.epochs, opt.lr, opt.use_scheduler, opt.decay_factor
+    n_epoch, lr, scheduler, decay_factor = opt.epochs, opt.lr, opt.scheduler, opt.decay_factor
     logging.basicConfig(
         level=logging.INFO,
         format='%(asctime)s %(levelname)-8s %(message)s',
@@ -54,6 +54,7 @@ def main():
             # logging.FileHandler(f'{base_path}/{opt["numberepochs"]}/INFO.log', 'w'),
             logging.StreamHandler()
         ]
+
     )
 
     # 1- MODEL
@@ -62,7 +63,7 @@ def main():
     # 2- DATA LOADING AND TRAINER
     trainer = Trainer(
         model=model,
-        batch_size=64,
+        batch_size=opt.batch_size,
         device=device,
         num_epochs=n_epoch,
         optimizer=torch.optim.Adam(lr=lr, params=model.get_parameters()),
@@ -105,8 +106,11 @@ def main():
         fig2 = plot_metrics(metrics2)
         fig2.savefig(f'metrics2_{run.name}.png', dpi=500, facecolor='white', edgecolor='none')
 
-    model.freeze_mae()
+    if isinstance(model, MaeUnetr):
+        model.freeze_mae()
     trainer.train()
+    trainer.validate(n_epoch)
+    trainer.val_epochs.append(n_epoch)
     metrics1 = trainer.get_metrics()
     fig1 = plot_metrics(metrics1)
     fig1.savefig(f'metrics1_{run.name}.png', dpi=500, facecolor='white', edgecolor='none')
@@ -114,6 +118,7 @@ def main():
     LOGGER.info(f"Best Epoch: {opt.mae_epochs+trainer.best_epoch}")
 
     # 4- TESTING
+
     trainer.test()
     image_indices = [79, 32, 94, 45, 101, 88, 107, 83, 67, 3]
     for i in image_indices:

@@ -5,6 +5,8 @@ import numpy as np
 import pandas as pd
 import torch
 import torchvision.transforms as transforms
+from monai.metrics import DiceMetric, HausdorffDistanceMetric
+
 import wandb
 from sklearn.model_selection import train_test_split
 from torch import nn
@@ -126,6 +128,7 @@ class Trainer:
         self.num_epochs = num_epochs
         self.log_interval = 8
         self.dataset_name = dataset_name
+        self.batch_size = batch_size
 
         self.train_dataset, self.test_dataset, self.val_dataset = self.get_dataset(dataset_name, dataset_path)
         self.train_loader = DataLoader(self.train_dataset, shuffle=True, batch_size=batch_size, pin_memory=True)
@@ -143,7 +146,7 @@ class Trainer:
 
         # Best vitMaemodel and its metrics
         self.best_model = None
-        self.best_dice = np.inf
+        self.best_dice = 0
         self.best_epoch = 0
         self.use_scheduler = scheduler
         self.decay_factor = decay_factor
@@ -205,7 +208,7 @@ class Trainer:
         :param dice: The dice coefficient obtained during the current epoch.
         :type dice: float
         """
-        if dice < self.best_dice:
+        if dice > self.best_dice:
             LOGGER = logging.getLogger(__name__)
             LOGGER.info(f"Saved New Model at Epoch {epoch}")
             self.best_dice = dice
@@ -237,9 +240,9 @@ class Trainer:
             running_dice = 0.0
             lr = self.optimizer.param_groups[0]['lr']
             if self.use_scheduler:
-                self.optimizer.param_groups[0]['lr'] = self.start_lr * (self.decay_factor ** (epoch // 10))
+                self.optimizer.param_groups[0]['lr'] = self.start_lr * (self.decay_factor ** (epoch // 20))
                 # self.optimizer.param_groups[0]['lr'] = self.start_lr * (self.decay_factor ** (epoch // 20))
-            wandb.log({"learning rate": lr})
+            wandb.log({"learning rate": lr}, step=epoch+1)
 
             self.model.train()
             for i, (images, masks) in enumerate(pbar := tqdm(self.train_loader)):
@@ -248,7 +251,7 @@ class Trainer:
                 self.optimizer.zero_grad()
                 outputs = self.model(images)
                 loss = self.criterion(outputs, masks)
-                dice = self.criterion.dice(outputs, masks)
+                dice = 1 - self.criterion.dice(outputs, masks)
 
                 loss.backward()
                 self.optimizer.step()
@@ -260,13 +263,13 @@ class Trainer:
             avg_train_dice = running_dice / len(self.train_loader)
             LOGGER.info(
                 f'Epoch [{epoch + 1}/{self.num_epochs}], Train Loss: {avg_train_loss:.4f}, Train Dice: {avg_train_dice:.4f}')
-            wandb.log({"train loss": avg_train_loss, "train dice": avg_train_dice})
+            wandb.log({"train loss": avg_train_loss, "train dice": avg_train_dice}, step=epoch+1)
 
             # Save metrics
             self.train_losses.append(avg_train_loss)
             self.train_dices.append(avg_train_dice)
             if (epoch + 1) % 10 == 0:
-                self.validate(epoch)
+                self.validate(epoch+1)
                 self.val_epochs.append(epoch + 1)
 
     @torch.no_grad()
@@ -281,17 +284,20 @@ class Trainer:
         running_dice = 0.0
         LOGGER = logging.getLogger(__name__)
         LOGGER.info(f"Start testing on {self.device}")
+        self.model.load_state_dict(self.best_model)
         self.model.eval()
         for i, (images, masks) in enumerate(pbar := tqdm(self.test_loader)):
             images, masks = images.to(self.device), masks.to(self.device)
             outputs = self.model(images)
-            dice = self.criterion.dice(outputs, masks)
+            dice = 1 - self.criterion.dice(outputs, masks)
             running_dice += dice
             pbar.set_postfix({"Dice coefficient": torch.round(dice, decimals=4).item()})
 
         avg_dice = running_dice / len(self.test_loader)
         LOGGER.info(f"Test Dice: {avg_dice}")
+        # LOGGER.info(f"Test Hausdorff: {avg_hausdorff}")
         wandb.log({"test dice": avg_dice})
+        # wandb.log({"test hausdorff": avg_hausdorff})
 
     @torch.no_grad()
     def validate(self, epoch: int):
@@ -317,20 +323,20 @@ class Trainer:
             outputs = self.model(images)
 
             loss = self.criterion(outputs, masks)
-            dice = self.criterion.dice(outputs, masks)
+            dice = 1 - self.criterion.dice(outputs, masks)
 
             running_loss += loss.item()
             running_dice += dice.item()
             pbar.set_postfix({"Val Loss": torch.round(loss, decimals=4).item()})
 
-        avg_val_loss = running_loss / len(self.train_loader)
-        avg_val_dice = running_dice / len(self.train_loader)
+        avg_val_loss = running_loss / len(self.val_loader)
+        avg_val_dice = running_dice / len(self.val_loader)
         LOGGER.info(f'Epoch [{epoch}/{self.num_epochs}], Val Loss: {avg_val_loss:.4f}, Val Dice {avg_val_dice:.4f}')
 
         # Save metrics
         self.val_losses.append(avg_val_loss)
         self.val_dices.append(avg_val_dice)
-        wandb.log({"val loss": avg_val_loss, "val dice": avg_val_dice})
+        wandb.log({"val loss": avg_val_loss, "val dice": avg_val_dice}, step=epoch)
 
         # Save best vitMaemodel
         self.save_best_model(epoch, avg_val_dice)
