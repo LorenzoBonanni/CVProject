@@ -10,7 +10,7 @@ from monai.losses import DiceCELoss
 
 from models.mae_unetr import MaeUnetr
 from trainer import Trainer
-from utilis.utils import plot_metrics, get_opt
+from utilis.utils import plot_metrics, get_opt, plot_subplots
 
 SEED = 5
 LOGGER = logging.getLogger(__name__)
@@ -92,23 +92,30 @@ def main():
         )
         trainer2.train()
         model.train_mae = False
+        metrics2 = trainer2.get_metrics()
+        fig2 = plot_metrics(metrics2)
+        fig2.savefig(f'metrics2_{run.name}.png', dpi=500, facecolor='white', edgecolor='none')
+
     model.freeze_mae()
     trainer.train()
-    metrics = trainer.get_metrics()
-    fig = plot_metrics(metrics)
-    fig.savefig(f'metrics_{run.name}.png', dpi=500, facecolor='white', edgecolor='none')
+    metrics1 = trainer.get_metrics()
+    fig1 = plot_metrics(metrics1)
+    fig1.savefig(f'metrics1_{run.name}.png', dpi=500, facecolor='white', edgecolor='none')
+
+    LOGGER.info(f"Best Epoch: {opt.mae_epochs+trainer.best_epoch}")
 
     # 4- TESTING
     trainer.test()
-    # image_indices = random.sample(range(len(trainer.test_dataset)), 10)
-    # for i in image_indices:
-    #     image = trainer.test_dataset[i][0]
-    #     mask = trainer.test_dataset[i][1]
-    #     im = image.to(device)
-    #     pred = model(im.unsqueeze(0))
-    #     pred = pred.squeeze()
-    #
-    #     plot_subplots(im, mask, pred, trainer.imagenet_mean, trainer.imagenet_std)
+    image_indices = [79, 32, 94, 45, 101, 88, 107, 83, 67, 3]
+    for i in image_indices:
+        image = trainer.test_dataset[i][0]
+        mask = trainer.test_dataset[i][1]
+        im = image.to(device)
+        pred = model(im.unsqueeze(0))
+        pred = pred.squeeze()
+
+        final_fig = plot_subplots(im, mask, pred, trainer.imagenet_mean, trainer.imagenet_std)
+        wandb.log({f"fig{i}": wandb.Image(final_fig)})
 
 
 if __name__ == '__main__':

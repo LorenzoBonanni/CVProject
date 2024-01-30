@@ -131,7 +131,7 @@ class Trainer:
             if self.scheduler:
                 self.optimizer.param_groups[0]['lr'] = self.start_lr * (self.decay_factor ** (epoch // 10))
                 # self.optimizer.param_groups[0]['lr'] = self.start_lr * (self.decay_factor ** (epoch // 20))
-            wandb.log({"learning rate": lr}, step=epoch+1)
+            wandb.log({"learning rate": lr})
 
             self.model.train()
             for i, (images, masks) in enumerate(pbar := tqdm(self.train_loader)):
@@ -153,12 +153,12 @@ class Trainer:
             avg_train_dice = running_dice / len(self.train_loader)
             LOGGER.info(
                 f'Epoch [{epoch + 1}/{self.num_epochs}], Train Loss: {avg_train_loss:.4f}, Train Dice: {avg_train_dice:.4f}')
-            wandb.log({"train loss": avg_train_loss, "train dice": avg_train_dice}, step=epoch+1)
+            wandb.log({"train loss": avg_train_loss, "train dice": avg_train_dice})
 
             # Save metrics
             self.train_losses.append(avg_train_loss)
             self.train_dices.append(avg_train_dice)
-            if epoch % 10 == 0:
+            if (epoch+1) % 10 == 0:
                 self.validate(epoch)
                 self.val_epochs.append(epoch+1)
 
@@ -205,7 +205,7 @@ class Trainer:
         # Save metrics
         self.val_losses.append(avg_val_loss)
         self.val_dices.append(avg_val_dice)
-        wandb.log({"val loss": avg_val_loss, "val dice": avg_val_dice}, step=epoch+1)
+        wandb.log({"val loss": avg_val_loss, "val dice": avg_val_dice})
 
         # Save best vitMaemodel
         self.save_best_model(epoch, avg_val_dice)

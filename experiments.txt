@@ -1,7 +1,4 @@
-python main.py --scheduler=True --lr=0.001 --epoch=400 --decay_factor=0.9
-python main.py --scheduler=True --lr=0.001 --epoch=400 --decay_factor=0.8
-python main.py --scheduler=True --lr=0.01 --epoch=400 --decay_factor=0.8
 python main.py --scheduler=True --lr=0.001 --epoch=400 --decay_factor=0.9 --train_mae=True --mae_epochs=50 --mae_lr=1e-4
-python main.py --scheduler=True --lr=0.001 --epoch=400 --decay_factor=0.9 --train_mae=True --mae_epochs=10 --mae_lr=1e-4
-python main.py --scheduler=True --lr=0.001 --epoch=400 --decay_factor=0.9 --train_mae=True --mae_epochs=50 --mae_lr=1e-5
-python main.py --scheduler=True --lr=0.001 --epoch=400 --decay_factor=0.9 --train_mae=True --mae_epochs=10 --mae_lr=1e-5
+python main.py --scheduler=True --lr=0.001 --epoch=100 --decay_factor=0.9 --train_mae=True --mae_epochs=50 --mae_lr=1e-4
+python main.py --scheduler=True --lr=0.001 --epoch=200 --decay_factor=0.9 --train_mae=True --mae_epochs=50 --mae_lr=1e-4
+python main.py --scheduler=True --lr=0.001 --epoch=75 --decay_factor=0.9 --train_mae=True --mae_epochs=50 --mae_lr=1e-4

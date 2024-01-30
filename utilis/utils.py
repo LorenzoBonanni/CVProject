@@ -3,7 +3,6 @@ import argparse
 import matplotlib.pyplot as plt
 import numpy as np
 
-
 def plot_train_label(image, mask):
     f, axarr = plt.subplots(1, 3, figsize=(5, 5))
 
@@ -69,8 +68,8 @@ def to_numpy(tensor):
 
 def plot_subplots(image, mask, predicted, imagenet_mean, imagenet_std):
     # Convert tensors to NumPy arrays
+    # image = torch.clip((image.cpu() * imagenet_std + imagenet_mean) * 255, 0, 255).int()
     image_np, mask_np, predicted_np = map(to_numpy, (image, mask, predicted))
-    image_np = np.clip((image * imagenet_std + imagenet_mean) * 255, 0, 255).int()
 
     # Threshold the predicted values
     predicted_np_thresholded = np.expand_dims(np.argmax(predicted_np, axis=0), 0)
@@ -86,6 +85,7 @@ def plot_subplots(image, mask, predicted, imagenet_mean, imagenet_std):
         ax.axis('off')
 
     plt.show()
+    return fig
 
 
 def boolean_string(s):
