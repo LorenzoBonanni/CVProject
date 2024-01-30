@@ -5,20 +5,48 @@ import numpy as np
 import pandas as pd
 import torch
 import torchvision.transforms as transforms
+import wandb
 from sklearn.model_selection import train_test_split
+from torch import nn
 from torch.utils.data import DataLoader
 from tqdm import tqdm
 from transformers import AutoImageProcessor
 
-import wandb
-from data.dataset import BusiDataset, BratsDataset
+from data.dataset import BusiDataset
 
 
-def count_class(dataset, class_names):
+def count_class(dataset: pd.DataFrame, class_names: list[str]):
+    """
+    Count occurrences of each class in the dataset.
+
+    This function counts the occurrences of each class specified in `class_names`
+    within the dataset. It checks the 'image_path' column of the dataset for each
+    class occurrence.
+
+    :param dataset: The dataset containing the images.
+    :type dataset: pandas.DataFrame
+    :param class_names: A list of class names to count occurrences for.
+    :type class_names: list[str]
+    :return: A list containing the count of occurrences for each class in `class_names`.
+    :rtype: list[int]
+    """
     return [(dataset["image_path"].str.count(class_name) >= 1).sum() for class_name in class_names]
 
 
-def print_class_pct(subset_name, class_names, subset):
+def print_class_pct(subset_name: str, class_names: list[str], subset: pd.DataFrame):
+    """
+    Print the percentage of each class in the given subset.
+
+    This function calculates and prints the percentage of each class in the given subset
+    of data.
+
+    :param subset_name: Name of the subset being analyzed (e.g., 'TRAIN', 'TEST', 'VALIDATION').
+    :type subset_name: str
+    :param class_names: List of class names to analyze.
+    :type class_names: list[str]
+    :param subset: Subset of data to analyze.
+    :type subset: pandas.DataFrame
+    """
     LOGGER = logging.getLogger(__name__)
     base_str = f"{subset_name}"
     classes_counts = count_class(subset, class_names)
@@ -28,7 +56,19 @@ def print_class_pct(subset_name, class_names, subset):
     LOGGER.info(base_str)
 
 
-def get_data(dataset_path):
+def get_busi_data(dataset_path: str):
+    """
+    Load and preprocess data for the BUSI dataset.
+
+    This function reads images and masks from the specified dataset path, splits them into
+    training, testing, and validation subsets, and prints the class distribution percentages
+    for each subset.
+
+    :param dataset_path: Path to the directory containing the BUSI dataset.
+    :type dataset_path: str
+    :return: Tuple containing the training, testing, and validation subsets of the dataset.
+    :rtype: tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame]
+    """
     masks = glob.glob(f"{dataset_path}/*/*_mask.png")
     images = [mask_images.replace("_mask", "") for mask_images in masks]
     series = list(zip(images, masks))
@@ -44,8 +84,39 @@ def get_data(dataset_path):
 
 
 class Trainer:
-    def __init__(self, model, optimizer, criterion, dataset_name, dataset_path, batch_size, device, num_epochs,
-                 scheduler, decay_factor, start_lr):
+    def __init__(self, model: nn.Module, optimizer: torch.optim.Optimizer, criterion: nn.Module, dataset_name: str,
+                 dataset_path: str, batch_size: int, device: torch.device, num_epochs: int,
+                 scheduler: bool, decay_factor: float, start_lr: float):
+        """
+        A class to manage training and evaluation of a neural network model.
+
+        This class facilitates the training and evaluation of a neural network model
+        using the specified optimizer, loss criterion, and dataset. Additionally, it tracks
+        and stores training and validation metrics such as losses and dice coefficients.
+
+        :param model: The neural network model to be trained.
+        :type model: torch.nn.Module
+        :param optimizer: The optimizer used for training the model.
+        :type optimizer: torch.optim.Optimizer
+        :param criterion: The loss criterion used for optimization.
+        :type criterion: torch.nn.Module
+        :param dataset_name: The name of the dataset being used.
+        :type dataset_name: str
+        :param dataset_path: The path to the dataset.
+        :type dataset_path: str
+        :param batch_size: The batch size used during training.
+        :type batch_size: int
+        :param device: The device (CPU or GPU) on which the model will be trained.
+        :type device: torch.device
+        :param num_epochs: The number of training epochs.
+        :type num_epochs: int
+        :param scheduler: Whether to use a learning rate scheduler during training.
+        :type scheduler: bool
+        :param decay_factor: The decay factor used by the learning rate scheduler.
+        :type decay_factor: float
+        :param start_lr: The learning rate used by the scheduler.
+        :type start_lr: float
+        """
         self.imagenet_std = None
         self.imagenet_mean = None
         self.model = model
@@ -74,11 +145,26 @@ class Trainer:
         self.best_model = None
         self.best_dice = np.inf
         self.best_epoch = 0
-        self.scheduler = scheduler
+        self.use_scheduler = scheduler
         self.decay_factor = decay_factor
         self.start_lr = start_lr
 
-    def get_dataset(self, dataset_name, dataset_path):
+    def get_dataset(self, dataset_name: str, dataset_path: str):
+        """
+        Load and preprocess the dataset.
+
+        This method loads and preprocesses the dataset specified by `dataset_name` from the
+        directory `dataset_path`. It applies appropriate transformations to the images and
+        masks based on the dataset requirements.
+
+        :param dataset_name: The name of the dataset to load.
+        :type dataset_name: str
+        :param dataset_path: The path to the directory containing the dataset.
+        :type dataset_path: str
+        :return: Tuple containing the training, testing, and validation datasets.
+        :rtype: tuple[Dataset, Dataset, Dataset]
+        :raises ValueError: If the dataset name is unrecognized.
+        """
         LOGGER = logging.getLogger(__name__)
         image_processor = AutoImageProcessor.from_pretrained("facebook/vit-mae-base")
         self.imagenet_mean = np.array(image_processor.image_mean)
@@ -89,23 +175,36 @@ class Trainer:
         ])
 
         if dataset_name == "BUSI":
-            train_df, test_df, val_df = get_data(dataset_path)
-            train_dataset = BusiDataset(train_df, self.device, image_processor, mask_transforms)
-            test_dataset = BusiDataset(test_df, self.device, image_processor, mask_transforms)
-            val_dataset = BusiDataset(val_df, self.device, image_processor, mask_transforms)
+            train_df, test_df, val_df = get_busi_data(dataset_path)
+            train_dataset = BusiDataset(train_df, image_processor, mask_transforms)
+            test_dataset = BusiDataset(test_df, image_processor, mask_transforms)
+            val_dataset = BusiDataset(val_df, image_processor, mask_transforms)
             LOGGER.info(f"Length Train Dataset: {len(train_dataset)}")
             LOGGER.info(f"Length Test Dataset: {len(test_dataset)}")
             LOGGER.info(f"Length Val Dataset: {len(val_dataset)}")
             return train_dataset, test_dataset, val_dataset
         elif dataset_name == "BRATS":
-            train_df, test_df, val_df = get_data(dataset_path)
-            train_dataset = BratsDataset(train_df, self.device, image_processor, mask_transforms)
-            test_dataset = BratsDataset(test_df, self.device, image_processor, mask_transforms)
-            return train_dataset, test_dataset
+            # train_df, test_df, val_df = get_data(dataset_path)
+            # train_dataset = BratsDataset(train_df, self.device, image_processor, mask_transforms)
+            # test_dataset = BratsDataset(test_df, self.device, image_processor, mask_transforms)
+            # return train_dataset, test_dataset
+            pass
         else:
             raise ValueError(f"Unrecognized Dataset named {dataset_name}")
 
-    def save_best_model(self, epoch, dice):
+    def save_best_model(self, epoch: int, dice: float):
+        """
+        Save the best model based on the dice coefficient.
+
+        This method saves the model parameters if the provided `dice` loss
+        is better than the current best dice loss. It also updates the
+        best dice loss and epoch.
+
+        :param epoch: The current epoch number.
+        :type epoch: int
+        :param dice: The dice coefficient obtained during the current epoch.
+        :type dice: float
+        """
         if dice < self.best_dice:
             LOGGER = logging.getLogger(__name__)
             LOGGER.info(f"Saved New Model at Epoch {epoch}")
@@ -121,6 +220,15 @@ class Trainer:
             torch.save(self.best_model, filename)
 
     def train(self):
+        """
+        Train the neural network model.
+
+        This method performs the training loop for the neural network model over
+        multiple epochs. It updates the model parameters using the specified optimizer
+        and loss criterion. Additionally, it logs training metrics such as loss and
+        dice loss, and periodically validates the model on the validation dataset.
+
+        """
         # Training loop
         LOGGER = logging.getLogger(__name__)
         LOGGER.info(f"Start training on {self.device}")
@@ -128,14 +236,13 @@ class Trainer:
             running_loss = 0.0
             running_dice = 0.0
             lr = self.optimizer.param_groups[0]['lr']
-            if self.scheduler:
+            if self.use_scheduler:
                 self.optimizer.param_groups[0]['lr'] = self.start_lr * (self.decay_factor ** (epoch // 10))
                 # self.optimizer.param_groups[0]['lr'] = self.start_lr * (self.decay_factor ** (epoch // 20))
             wandb.log({"learning rate": lr})
 
             self.model.train()
             for i, (images, masks) in enumerate(pbar := tqdm(self.train_loader)):
-
                 images, masks = images.to(self.device), masks.to(self.device)
 
                 self.optimizer.zero_grad()
@@ -158,12 +265,19 @@ class Trainer:
             # Save metrics
             self.train_losses.append(avg_train_loss)
             self.train_dices.append(avg_train_dice)
-            if (epoch+1) % 10 == 0:
+            if (epoch + 1) % 10 == 0:
                 self.validate(epoch)
-                self.val_epochs.append(epoch+1)
+                self.val_epochs.append(epoch + 1)
 
     @torch.no_grad()
     def test(self):
+        """
+        Evaluate the neural network model on the test dataset.
+
+        This method evaluates the trained neural network model on the test dataset.
+        It computes the dice loss for each batch of images and masks, and then
+        calculates the average dice loss for the entire test dataset.
+        """
         running_dice = 0.0
         LOGGER = logging.getLogger(__name__)
         LOGGER.info(f"Start testing on {self.device}")
@@ -180,7 +294,18 @@ class Trainer:
         wandb.log({"test dice": avg_dice})
 
     @torch.no_grad()
-    def validate(self, epoch):
+    def validate(self, epoch: int):
+        """
+        Perform validation on the validation dataset.
+
+        This method evaluates the trained neural network model on the validation dataset
+        to assess its performance. It computes the loss and dice loss for each batch
+        of images and masks, and then calculates the average loss and dice loss for
+        the entire validation dataset.
+
+        :param epoch: The current epoch number.
+        :type epoch: int
+        """
         LOGGER = logging.getLogger(__name__)
         running_loss = 0.0
         running_dice = 0.0
@@ -211,6 +336,17 @@ class Trainer:
         self.save_best_model(epoch, avg_val_dice)
 
     def get_metrics(self):
+        """
+        Retrieve training and evaluation metrics.
+
+        This method returns a dictionary containing various metrics tracked during the
+        training and evaluation of the neural network model. The metrics include training
+        and validation losses, training and validation dice loss, information
+        about the best model (if saved), and related epoch information.
+
+        :return: Dictionary containing the tracked metrics.
+        :rtype: dict
+        """
         return {
             'train_losses': self.train_losses,
             'test_losses': self.test_losses,

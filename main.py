@@ -10,7 +10,7 @@ from monai.losses import DiceCELoss
 
 from models.mae_unetr import MaeUnetr
 from trainer import Trainer
-from utilis.utils import plot_metrics, get_opt, plot_subplots
+from utilis.utils import plot_metrics, get_opt, plot_subplots, get_model
 
 SEED = 5
 LOGGER = logging.getLogger(__name__)
@@ -18,6 +18,15 @@ use_cuda = torch.cuda.is_available()
 
 
 def seed_everything(seed: int):
+    """
+    Seed various random number generators for reproducibility.
+
+    This function sets seeds for random number generators in Python, PyTorch, NumPy,
+    and the operating system environment variables to ensure reproducibility of results.
+
+    :param seed: The seed value to be used for random number generation.
+    :type seed: int
+    """
     LOGGER.info(f"Seed: {seed}")
     if seed is None:
         seed = random.randint(1, 10000)
@@ -34,9 +43,10 @@ def seed_everything(seed: int):
 
 
 def main():
+    seed_everything(SEED)
     opt = get_opt()
     device = torch.device(f'cuda:{opt.device}' if use_cuda else 'cpu')
-    n_epoch, lr, scheduler, decay_factor = opt.epochs, opt.lr, opt.scheduler, opt.decay_factor
+    n_epoch, lr, scheduler, decay_factor = opt.epochs, opt.lr, opt.use_scheduler, opt.decay_factor
     logging.basicConfig(
         level=logging.INFO,
         format='%(asctime)s %(levelname)-8s %(message)s',
@@ -45,10 +55,9 @@ def main():
             logging.StreamHandler()
         ]
     )
-    seed_everything(SEED)
 
     # 1- MODEL
-    model = MaeUnetr(opt.train_mae)
+    model = get_model(opt.model_name, opt)
     model.to(device)
     # 2- DATA LOADING AND TRAINER
     trainer = Trainer(

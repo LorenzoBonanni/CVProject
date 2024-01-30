@@ -9,13 +9,31 @@ max_processes = 1
 
 # Define a function that runs a process using subprocess
 def run_process(process):
+    """
+    Execute a shell command or process.
+
+    This function takes a string representing a shell command or process and executes
+    it using the subprocess module. It prints the process to be executed and then
+    runs it using the `subprocess.run()` function with `shell=True`.
+
+    :param process: The shell command or process to execute.
+    :type process: str
+    """
     import subprocess
-    print(process)
-    subprocess.run(process, shell=True)
+    print(process)  # Print the process to be executed
+    subprocess.run(process, shell=True)  # Execute the process
 
 
 def main():
-    # Create a pool of 4 worker processes
+    """
+    Execute multiple processes concurrently using multiprocessing.
+
+    This function creates a pool of worker processes and executes multiple processes
+    concurrently. It submits each process to the pool for execution and waits for
+    their completion. Once all processes are completed, it prints a message indicating
+    that all processes have finished.
+    """
+    # Create a pool of max_processes worker processes
     pool = multiprocessing.Pool(max_processes)
 
     # Create an empty list to store the AsyncResult objects

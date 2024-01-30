@@ -4,22 +4,21 @@ import torch.nn as nn
 
 class Unet(nn.Module):
 
-    def __init__(self, input_channel=1):
+    def __init__(self, input_channel=3):
         super().__init__()
-        self.encoder_1 = Encoder(input_channel, 64)
-        self.encoder_2 = Encoder(64, 128)
-        self.encoder_3 = Encoder(128, 256)
-        self.encoder_4 = Encoder(256, 512)
+        self.encoder_1 = Encoder(input_channel, 64, 0.07)
+        self.encoder_2 = Encoder(64, 128, 0.08)
+        self.encoder_3 = Encoder(128, 256, 0.09)
+        self.encoder_4 = Encoder(256, 512, 0.1)
 
-        self.conv_block = ConvBlock(512, 1024)
+        self.conv_block = ConvBlock(512, 1024, 0.11)
 
-        self.decoder_1 = Decoder(1024, 512)
-        self.decoder_2 = Decoder(512, 256)
-        self.decoder_3 = Decoder(256, 128)
-        self.decoder_4 = Decoder(128, 64)
+        self.decoder_1 = Decoder(1024, 512, 0.1)
+        self.decoder_2 = Decoder(512, 256, 0.09)
+        self.decoder_3 = Decoder(256, 128, 0.08)
+        self.decoder_4 = Decoder(128, 64, 0.07)
 
-        self.cls = nn.Conv2d(64, 1, kernel_size=1, padding=0)
-        self.relu = nn.Sigmoid()
+        self.cls = nn.Conv2d(64, 2, kernel_size=1, padding=0)
 
     def forward(self, x):
         """ ------ Encoder ------"""
@@ -39,7 +38,6 @@ class Unet(nn.Module):
 
         """ ------ Final Layer ------"""
         x_final = self.cls(x9)
-        x_final = self.relu(x_final)
 
         return x_final
 
