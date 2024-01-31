@@ -190,6 +190,8 @@ def get_opt():
     parser.add_argument("--device", type=int, help="number of device", default=0)
     parser.add_argument("--batch_size", type=int, help="size of the batch", default=64)
     parser.add_argument("--model_name", type=str, help="name of the model to train", default="MAE_UNETR")
+    parser.add_argument("--dataset", type=str, help="name of the dataset", default="BUSI")
+    parser.add_argument("--dataset_path", type=str, help="path to the dataset", default="/media/data/lbonanni/Dataset_BUSI_with_GT")
     args = parser.parse_args()
     args.epochs -= args.mae_epochs
     return args

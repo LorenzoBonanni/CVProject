@@ -70,8 +70,8 @@ def main():
         criterion=DiceCELoss(to_onehot_y=True,
                              softmax=True,
                              squared_pred=False),
-        dataset_name="BUSI",
-        dataset_path="/media/data/lbonanni/Dataset_BUSI_with_GT",
+        dataset_name=opt.dataset,
+        dataset_path=opt.dataset_path,
         scheduler=scheduler,
         decay_factor=decay_factor,
         start_lr=copy.copy(lr)
@@ -83,6 +83,7 @@ def main():
 
     # 3- TRAINING
     # Mae
+    start_epoch = 0
     if opt.train_mae:
         LOGGER.info(f"Training All the Network")
         trainer2 = Trainer(
@@ -94,8 +95,8 @@ def main():
             criterion=DiceCELoss(to_onehot_y=True,
                                  softmax=True,
                                  squared_pred=False),
-            dataset_name="BUSI",
-            dataset_path="/media/data/lbonanni/Dataset_BUSI_with_GT",
+            dataset_name=opt.dataset,
+            dataset_path=opt.dataset_path,
             scheduler=False,
             decay_factor=decay_factor,
             start_lr=copy.copy(lr)
@@ -103,13 +104,14 @@ def main():
         trainer2.train()
         model.train_mae = False
         metrics2 = trainer2.get_metrics()
+        start_epoch = opt.mae_epochs
         fig2 = plot_metrics(metrics2)
         fig2.savefig(f'metrics2_{run.name}.png', dpi=500, facecolor='white', edgecolor='none')
 
     if isinstance(model, MaeUnetr):
         model.freeze_mae()
-    trainer.train()
-    trainer.validate(n_epoch)
+    trainer.train(start_epoch)
+    trainer.validate(start_epoch+n_epoch)
     trainer.val_epochs.append(n_epoch)
     metrics1 = trainer.get_metrics()
     fig1 = plot_metrics(metrics1)

@@ -3,3 +3,4 @@ __pycache__
 *.png
 *.jpg
 wandb/
+experiments.txt

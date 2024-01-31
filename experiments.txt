@@ -1,6 +1,0 @@
-python main.py --model_name="UNET" --scheduler=False --lr=0.0001 --epoch=100 --batch_size=16 --device=0
-python main.py --model_name="UNET" --scheduler=False --lr=0.0001 --epoch=200 --batch_size=16 --device=0
-python main.py --model_name="UNET" --scheduler=False --lr=0.0001 --epoch=400 --batch_size=16 --device=0
-python main.py --model_name="UNET" --scheduler=False --lr=0.001 --epoch=100 --batch_size=16 --device=0
-python main.py --model_name="UNET" --scheduler=True --lr=0.001 --epoch=200 --decay_factor=0.9 --batch_size=16 --device=0
-python main.py --model_name="UNET" --scheduler=True --lr=0.001 --epoch=100 --decay_factor=0.9 --batch_size=16 --device=0

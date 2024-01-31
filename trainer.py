@@ -5,16 +5,14 @@ import numpy as np
 import pandas as pd
 import torch
 import torchvision.transforms as transforms
-from monai.metrics import DiceMetric, HausdorffDistanceMetric
-
-import wandb
 from sklearn.model_selection import train_test_split
 from torch import nn
 from torch.utils.data import DataLoader
 from tqdm import tqdm
 from transformers import AutoImageProcessor
 
-from data.dataset import BusiDataset
+import wandb
+from data.dataset import ImagesDataset
 
 
 def count_class(dataset: pd.DataFrame, class_names: list[str]):
@@ -82,6 +80,16 @@ def get_busi_data(dataset_path: str):
     print_class_pct("TEST", classes, test)
     print_class_pct("VAL", classes, val)
 
+    return train, test, val
+
+
+def get_bts_data(dataset_path: str):
+    masks = glob.glob(f"{dataset_path}/masks/*.png")
+    images = [mask_images.replace("masks", "images") for mask_images in masks]
+    series = list(zip(images, masks))
+    dataset = pd.DataFrame(series, columns=['image_path', 'mask_path'])
+    train, test = train_test_split(dataset, test_size=0.15, shuffle=True)
+    train, val = train_test_split(train, test_size=0.214285714, shuffle=True)  # 0.214285714×0.7 = 0.15
     return train, test, val
 
 
@@ -179,21 +187,18 @@ class Trainer:
 
         if dataset_name == "BUSI":
             train_df, test_df, val_df = get_busi_data(dataset_path)
-            train_dataset = BusiDataset(train_df, image_processor, mask_transforms)
-            test_dataset = BusiDataset(test_df, image_processor, mask_transforms)
-            val_dataset = BusiDataset(val_df, image_processor, mask_transforms)
-            LOGGER.info(f"Length Train Dataset: {len(train_dataset)}")
-            LOGGER.info(f"Length Test Dataset: {len(test_dataset)}")
-            LOGGER.info(f"Length Val Dataset: {len(val_dataset)}")
-            return train_dataset, test_dataset, val_dataset
-        elif dataset_name == "BRATS":
-            # train_df, test_df, val_df = get_data(dataset_path)
-            # train_dataset = BratsDataset(train_df, self.device, image_processor, mask_transforms)
-            # test_dataset = BratsDataset(test_df, self.device, image_processor, mask_transforms)
-            # return train_dataset, test_dataset
-            pass
+        elif dataset_name == "BTS":
+            train_df, test_df, val_df = get_bts_data(dataset_path)
         else:
             raise ValueError(f"Unrecognized Dataset named {dataset_name}")
+
+        train_dataset = ImagesDataset(train_df, image_processor, mask_transforms)
+        test_dataset = ImagesDataset(test_df, image_processor, mask_transforms)
+        val_dataset = ImagesDataset(val_df, image_processor, mask_transforms)
+        LOGGER.info(f"Length Train Dataset: {len(train_dataset)}")
+        LOGGER.info(f"Length Test Dataset: {len(test_dataset)}")
+        LOGGER.info(f"Length Val Dataset: {len(val_dataset)}")
+        return train_dataset, test_dataset, val_dataset
 
     def save_best_model(self, epoch: int, dice: float):
         """
@@ -222,7 +227,7 @@ class Trainer:
             filename = f'{log_directory}/best_model_epoch{epoch}_dice{dice:.4f}.pth'
             torch.save(self.best_model, filename)
 
-    def train(self):
+    def train(self, start_epoch:int=0):
         """
         Train the neural network model.
 
@@ -242,7 +247,7 @@ class Trainer:
             if self.use_scheduler:
                 self.optimizer.param_groups[0]['lr'] = self.start_lr * (self.decay_factor ** (epoch // 20))
                 # self.optimizer.param_groups[0]['lr'] = self.start_lr * (self.decay_factor ** (epoch // 20))
-            wandb.log({"learning rate": lr}, step=epoch+1)
+            wandb.log({"learning rate": lr}, step=start_epoch + epoch + 1)
 
             self.model.train()
             for i, (images, masks) in enumerate(pbar := tqdm(self.train_loader)):
@@ -263,13 +268,13 @@ class Trainer:
             avg_train_dice = running_dice / len(self.train_loader)
             LOGGER.info(
                 f'Epoch [{epoch + 1}/{self.num_epochs}], Train Loss: {avg_train_loss:.4f}, Train Dice: {avg_train_dice:.4f}')
-            wandb.log({"train loss": avg_train_loss, "train dice": avg_train_dice}, step=epoch+1)
+            wandb.log({"train loss": avg_train_loss, "train dice": avg_train_dice}, step=start_epoch + epoch + 1)
 
             # Save metrics
             self.train_losses.append(avg_train_loss)
             self.train_dices.append(avg_train_dice)
             if (epoch + 1) % 10 == 0:
-                self.validate(epoch+1)
+                self.validate(start_epoch + epoch + 1)
                 self.val_epochs.append(epoch + 1)
 
     @torch.no_grad()
