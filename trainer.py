@@ -5,13 +5,13 @@ import numpy as np
 import pandas as pd
 import torch
 import torchvision.transforms as transforms
+import wandb
 from sklearn.model_selection import train_test_split
 from torch import nn
 from torch.utils.data import DataLoader
 from tqdm import tqdm
 from transformers import AutoImageProcessor
 
-import wandb
 from data.dataset import ImagesDataset
 
 
@@ -93,6 +93,16 @@ def get_bts_data(dataset_path: str):
     return train, test, val
 
 
+def get_cvc_data(dataset_path):
+    masks = glob.glob(f"{dataset_path}/Ground Truth/*.png")
+    images = [mask_images.replace("Ground Truth", "Original") for mask_images in masks]
+    series = list(zip(images, masks))
+    dataset = pd.DataFrame(series, columns=['image_path', 'mask_path'])
+    train, test = train_test_split(dataset, test_size=0.15, shuffle=True)
+    train, val = train_test_split(train, test_size=0.214285714, shuffle=True)  # 0.214285714×0.7 = 0.15
+    return train, test, val
+
+
 class Trainer:
     def __init__(self, model: nn.Module, optimizer: torch.optim.Optimizer, criterion: nn.Module, dataset_name: str,
                  dataset_path: str, batch_size: int, device: torch.device, num_epochs: int,
@@ -137,6 +147,7 @@ class Trainer:
         self.log_interval = 8
         self.dataset_name = dataset_name
         self.batch_size = batch_size
+        self.dataset_path = dataset_path
 
         self.train_dataset, self.test_dataset, self.val_dataset = self.get_dataset(dataset_name, dataset_path)
         self.train_loader = DataLoader(self.train_dataset, shuffle=True, batch_size=batch_size, pin_memory=True)
@@ -189,6 +200,8 @@ class Trainer:
             train_df, test_df, val_df = get_busi_data(dataset_path)
         elif dataset_name == "BTS":
             train_df, test_df, val_df = get_bts_data(dataset_path)
+        elif dataset_name == "CVC":
+            train_df, test_df, val_df = get_cvc_data(dataset_path)
         else:
             raise ValueError(f"Unrecognized Dataset named {dataset_name}")
 
@@ -220,14 +233,14 @@ class Trainer:
             self.best_epoch = epoch
             self.best_model = self.model.state_dict()
 
-            log_directory = '/media/data/lbonanni/Dataset_BUSI_with_GT/pretrained'
+            log_directory = f'{self.dataset_path}/pretrained'
             # os.makedirs(log_directory, exist_ok=True)
 
             # Specify the file path for saving the vitMaemodel
             filename = f'{log_directory}/best_model_epoch{epoch}_dice{dice:.4f}.pth'
             torch.save(self.best_model, filename)
 
-    def train(self, start_epoch:int=0):
+    def train(self, start_epoch: int = 0):
         """
         Train the neural network model.
 

@@ -42,9 +42,7 @@ def seed_everything(seed: int):
     torch.manual_seed(seed)
 
 
-def main():
-    seed_everything(SEED)
-    opt = get_opt()
+def main(opt):
     device = torch.device(f'cuda:{opt.device}' if use_cuda else 'cpu')
     n_epoch, lr, scheduler, decay_factor = opt.epochs, opt.lr, opt.scheduler, opt.decay_factor
     logging.basicConfig(
@@ -78,7 +76,8 @@ def main():
     )
     run = wandb.init(
         project="UnetMae",
-        config=opt.__dict__
+        config=opt.__dict__,
+        # tags=["final_exp"]
     )
 
     # 3- TRAINING
@@ -122,7 +121,8 @@ def main():
     # 4- TESTING
 
     trainer.test()
-    image_indices = [79, 32, 94, 45, 101, 88, 107, 83, 67, 3]
+    random.seed(0)
+    image_indices = random.sample(range(len(trainer.test_dataset)), 10)
     for i in image_indices:
         image = trainer.test_dataset[i][0]
         mask = trainer.test_dataset[i][1]
@@ -131,8 +131,11 @@ def main():
         pred = pred.squeeze()
 
         final_fig = plot_subplots(im, mask, pred, trainer.imagenet_mean, trainer.imagenet_std)
-        wandb.log({f"fig{i}": wandb.Image(final_fig)})
+        wandb.log({f"fig": wandb.Image(final_fig)})
 
 
 if __name__ == '__main__':
-    main()
+    seed_everything(SEED)
+    opt = get_opt()
+    for exp_num in range(opt.num_exp):
+        main(opt)

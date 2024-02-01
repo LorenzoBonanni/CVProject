@@ -2,10 +2,10 @@ import argparse
 
 import matplotlib.pyplot as plt
 import numpy as np
+import torch.nn as nn
 
 from models.mae_unetr import MaeUnetr
 from models.unet import Unet
-import torch.nn as nn
 
 
 def get_model(model_name: str, opt):
@@ -140,7 +140,6 @@ def plot_subplots(image, mask, predicted, imagenet_mean, imagenet_std):
     :rtype: matplotlib.figure.Figure
     """
     # Convert tensors to NumPy arrays
-    # image = torch.clip((image.cpu() * imagenet_std + imagenet_mean) * 255, 0, 255).int()
     image_np, mask_np, predicted_np = map(to_numpy, (image, mask, predicted))
 
     # Threshold the predicted values
@@ -151,6 +150,8 @@ def plot_subplots(image, mask, predicted, imagenet_mean, imagenet_std):
     # Plot Image, Mask, Predicted, and Thresholded Predicted
     titles = ['Image', 'Mask', 'Predicted']
     for ax, data, title in zip(axes, [image_np, mask_np, predicted_np_thresholded], titles):
+        if title == 'Image':
+            data = np.clip((data * np.expand_dims(imagenet_std, (1, 2)) + np.expand_dims(imagenet_mean, (1, 2))) * 255,0, 255).astype(int)
         data = np.transpose(data, (1, 2, 0))
         ax.imshow(data, cmap='gray')
         ax.set_title(title)
@@ -191,7 +192,9 @@ def get_opt():
     parser.add_argument("--batch_size", type=int, help="size of the batch", default=64)
     parser.add_argument("--model_name", type=str, help="name of the model to train", default="MAE_UNETR")
     parser.add_argument("--dataset", type=str, help="name of the dataset", default="BUSI")
-    parser.add_argument("--dataset_path", type=str, help="path to the dataset", default="/media/data/lbonanni/Dataset_BUSI_with_GT")
+    parser.add_argument("--dataset_path", type=str, help="path to the dataset",
+                        default="/media/data/lbonanni/Dataset_BUSI_with_GT")
+    parser.add_argument("--num_exp", type=int, help="number of experiments to perform", default=5)
     args = parser.parse_args()
     args.epochs -= args.mae_epochs
     return args
