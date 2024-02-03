@@ -28,27 +28,22 @@ def get_model(model_name: str, opt):
         raise ValueError(f"Unrecognized Model named {model_name}")
 
 
-# def plot_train_label(image, mask):
-#     f, axarr = plt.subplots(1, 3, figsize=(5, 5))
-#
-#     axarr[0].imshow(np.squeeze(image), cmap='gray', origin='lower')
-#     axarr[0].set_ylabel('Axial View', fontsize=14)
-#     axarr[0].set_xticks([])
-#     axarr[0].set_yticks([])
-#     axarr[0].set_title('CT', fontsize=14)
-#
-#     axarr[1].imshow(np.squeeze(mask), cmap='jet', origin='lower')
-#     axarr[1].axis('off')
-#     axarr[1].set_title('Mask', fontsize=14)
-#
-#     axarr[2].imshow(np.squeeze(image), cmap='gray', alpha=1, origin='lower')
-#     axarr[2].imshow(np.squeeze(mask), cmap='jet', alpha=0.5, origin='lower')
-#     axarr[2].axis('off')
-#     axarr[2].set_title('Overlay', fontsize=14)
-#
-#     plt.tight_layout()
-#     plt.subplots_adjust(wspace=0, hspace=0)
-#     plt.show()
+def plot_images(image, gtmask, mask1, mask2):
+    image_np, GTmask_np, mask1_np, mask2_np = map(to_numpy, (image, gtmask, mask1, mask2))
+
+    fig, axs = plt.subplots(1, 3, figsize=(12, 12))
+
+    titles = ['UNET', 'Ground Truth', 'MAE+UNETR']
+    for ax, mask, title in zip(axs, [mask1_np, GTmask_np, mask2_np], titles):
+        ax.imshow(image_np, alpha=1, cmap='gray')
+        ax.imshow(mask, alpha=0.5, cmap='gray')
+        ax.set_title(title)
+        ax.axis('off')
+
+    plt.tight_layout()
+    plt.show()
+
+    return fig
 
 
 def plot_metrics(metrics):
