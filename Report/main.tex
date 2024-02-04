@@ -1,0 +1,119 @@
+\documentclass[11pt]{article}
+\usepackage{XCharter}
+% \usepackage[T1]{fontenc}
+\usepackage[utf8]{inputenc}
+
+\usepackage{graphicx, geometry, wrapfig, float, multicol, mathtools, array, csquotes, lscape, setspace}
+\usepackage{wrapfig}
+\usepackage{multirow}
+% \usepackage[compactitem, compactenum]{paralist}
+\usepackage{subcaption}
+\usepackage[sorting=none]{biblatex}
+\addbibresource{bibliography.bib}
+\setcounter{biburllcpenalty}{9000}
+\usepackage[none]{hyphenat}
+\usepackage[dvipsnames]{xcolor}
+\usepackage[most]{tcolorbox}
+\usepackage{hyperref}
+\usepackage{pifont}% http://ctan.org/pkg/pifont
+\usepackage{xstring}
+\usepackage{txfonts}
+\usepackage[none]{hyphenat}
+\usepackage{svg}
+\usepackage{multicol}
+\usepackage{subcaption}  % For subfigures
+\usepackage{tikz}
+% \usepackage{pgfplots}
+
+
+\setlength{\parindent}{0pt}
+
+\usepackage{fancyhdr}
+\pagestyle{fancy}
+
+\fancyhead{}
+\fancyhead[L]{Computer Vision \& Deep Learning}
+%\fancyhead[R]{\nouppercase{\rightmark}}
+\fancyfoot{}
+\fancyfoot[C]{\thepage}
+\hypersetup{
+    colorlinks=true,
+    allcolors=.,
+    pdftitle={Computer Vision Report},
+    linkcolor=black
+}
+\geometry{
+    top=3.5cm,
+    bottom=3.0cm,
+    outer=2.5cm,
+    inner=2.5cm,
+    heightrounded,% <--- added, use it
+    % showframe,% <--- just for debugging
+    verbose,% <--- just for debugging
+}
+
+
+%%%%% MAIN
+\begin{document}
+
+\begin{titlepage}
+    \begin{center}
+        \vspace*{1cm}
+        \huge
+        \textbf{Medical image segmentation using advanced deep techniques}\\
+        \vspace{0.5cm}
+        \Large
+        \textbf{Comparison between UNet and Mae+Unetr}
+        \vspace{0.5cm}
+        
+            
+        \vspace{0.5cm}
+        \large
+        Project report\\
+        Computer Vision \& Deep Learning Course
+            
+        \vspace{3.5cm}
+        \begin{minipage}{0.4\textwidth}
+        \begin{flushleft} \large
+        \emph{Authors:}\\
+        \vspace{5mm}
+        Bonanni Lorenzo\\ \textit{VR495629} \\
+        \vspace{5mm}
+        Filippi Virginia\\ \textit{VR495315}
+        \end{flushleft}
+        \end{minipage}
+        ~
+        \begin{minipage}{0.4\textwidth}
+        \begin{flushright} \large
+        \emph{Professors:}\\
+        \vspace{5mm}
+        Vittorio Murino
+        \end{flushright}
+        \end{minipage}\\[2cm]
+            
+        \vfill
+        \vspace{0.8cm}
+            
+        \large
+        Master degree in Artificial Intelligence\\
+        Department of Computer Science\\
+        University of Verona\\
+            
+    \end{center}
+\end{titlepage}
+
+
+\newpage
+\tableofcontents
+
+\include{intro_state_art}
+\include{obj_methodology}
+\include{results_conclusions}
+
+\newpage
+%\addcontentsline{toc}{section}{Bibliography}
+%\section*{Bibliography}
+\printbibliography[heading=bibintoc,title={Bibliography}]
+
+
+\end{document}
